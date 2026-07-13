@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" role="img" aria-label="Health and logs screenshot placeholder">
+  <rect width="1280" height="820" fill="#f4f6f8"/>
+  <rect x="40" y="40" width="1200" height="740" rx="8" fill="#ffffff" stroke="#c9d1d9" stroke-width="2"/>
+  <text x="640" y="385" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#57606a">Health and logs screenshot</text>
+  <text x="640" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#6e7781">Replace this placeholder with logs and health status</text>
+</svg>

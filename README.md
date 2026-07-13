@@ -18,6 +18,18 @@ It handles release discovery, download verification, installation, startup, heal
 - Roll back to the previous installed component version if a newly installed component fails startup health checks.
 - Light and dark themes.
 
+## Screenshots
+
+The slots below are reserved for UI screenshots. Replace the placeholder SVG files in `assets/screenshots/` with current app screenshots, or update the image paths if you prefer PNG files.
+
+| Main dashboard | Installed versions |
+| --- | --- |
+| ![Main dashboard screenshot placeholder](assets/screenshots/main-dashboard.svg) | ![Installed versions screenshot placeholder](assets/screenshots/installed-versions.svg) |
+
+| Health and logs | Tray menu |
+| --- | --- |
+| ![Health and logs screenshot placeholder](assets/screenshots/health-and-logs.svg) | ![Tray menu screenshot placeholder](assets/screenshots/tray-menu.svg) |
+
 ## Platform Support
 
 CPA Manager Native targets Windows, macOS, and Linux.
@@ -128,6 +140,7 @@ git push origin vX.Y.Z
 ```text
 src/        React frontend
 src-tauri/  Tauri/Rust backend, installer, process manager, release resolver
+assets/     README screenshots and documentation assets
 PRD/        Product notes and design references
 .github/    CI, release workflow, and Dependabot configuration
 ```
