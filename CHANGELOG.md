@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added README documentation for setup, development, packaging, and release workflow.
+- Extended release packaging to macOS app/DMG and Linux deb/rpm/AppImage bundles.
+
 ## v0.0.1 - 2026-07-13
 
 ### Added

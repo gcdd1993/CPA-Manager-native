@@ -67,16 +67,43 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
   publish-tauri:
-    name: Package Windows NSIS
+    name: Package (${{ matrix.label }})
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
-    runs-on: windows-latest
+    runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
     permissions:
       contents: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Apple Silicon
+            platform: macos-15
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
+            rustTargets: aarch64-apple-darwin
+          - label: macOS Intel
+            platform: macos-15-intel
+            args: "--target x86_64-apple-darwin --bundles app,dmg"
+            rustTargets: x86_64-apple-darwin
+          - label: Linux x64
+            platform: ubuntu-22.04
+            args: "--bundles deb,rpm,appimage"
+            rustTargets: ""
+          - label: Windows x64
+            platform: windows-latest
+            args: "--bundles nsis"
+            rustTargets: ""
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libfuse2 rpm
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -85,7 +112,14 @@ jobs:
           cache: npm
 
       - name: Install Rust stable
+        if: matrix.rustTargets == ''
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust stable with target
+        if: matrix.rustTargets != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTargets }}
 
       - name: Cache Rust build artifacts
         uses: swatinem/rust-cache@v2
@@ -107,20 +141,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: npm run tauri
-          args: --bundles nsis
+          args: ${{ matrix.args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
             ## Changelog
 
             ### Added
-            - Initial CPA Manager Native desktop release for Windows.
+            - Initial CPA Manager Native desktop release for Windows, macOS, and Linux.
             - One-click install, update, start, stop, and health monitoring for CLIProxyAPI and CPA-Manager-Plus.
             - Automatic startup and shutdown for installed CPA Core and Manager components.
             - Tray-first close behavior, with explicit quit from the tray menu.
             - Automatic CLIProxyAPI remote-management secret generation and display.
             - Manual update checks only, avoiding GitHub API rate-limit noise from background polling.
-            - GitHub Actions release pipeline for Windows NSIS bundles.
+            - GitHub Actions release pipeline for Windows NSIS, macOS app/DMG, and Linux deb/rpm/AppImage bundles.
 
             ### Fixed
             - Skips CPA-Manager-Plus v1.11.0 on Windows because of upstream startup failure seakee/CPA-Manager-Plus#345.
