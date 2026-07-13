@@ -22,13 +22,13 @@ It handles release discovery, download verification, installation, startup, heal
 
 The slots below are reserved for UI screenshots. Replace the placeholder SVG files in `assets/screenshots/` with current app screenshots, or update the image paths if you prefer PNG files.
 
-| Main dashboard | Installed versions |
-| --- | --- |
-| ![Main dashboard screenshot placeholder](assets/screenshots/main-dashboard.svg) | ![Installed versions screenshot placeholder](assets/screenshots/installed-versions.svg) |
+| Main dashboard                                                                  | Installed versions |
+|---------------------------------------------------------------------------------| --- |
+| ![Main dashboard screenshot placeholder](assets/screenshots/main-dashboard.png) | ![Installed versions screenshot placeholder](assets/screenshots/installed-versions.png) |
 
 | Health and logs | Tray menu |
 | --- | --- |
-| ![Health and logs screenshot placeholder](assets/screenshots/health-and-logs.svg) | ![Tray menu screenshot placeholder](assets/screenshots/tray-menu.svg) |
+| ![Health and logs screenshot placeholder](assets/screenshots/health-and-logs.png) | ![Tray menu screenshot placeholder](assets/screenshots/tray-menu.png) |
 
 ## Platform Support
 
