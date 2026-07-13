@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 
 use crate::{
-    components::locate_executable,
+    components::{definition, expected_asset_name, locate_executable},
     error::{message, AppResult},
     github::{latest_release, resolve_assets},
     models::{ComponentId, InstallManifest, LifecycleState, LogLevel, LogSource},
@@ -152,6 +152,123 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     }
     state.emit_snapshot(app);
     Ok(())
+}
+
+pub fn rollback_to_previous_version(
+    state: &AppState,
+    id: ComponentId,
+) -> AppResult<Option<InstallManifest>> {
+    let Some(current) = state.with_component(id, |runtime| runtime.installed.clone()) else {
+        return Ok(None);
+    };
+    let Some(previous) = previous_install_manifest(state.root(), id, &current.version)? else {
+        return Ok(None);
+    };
+
+    write_manifest(&state.current_manifest_path(id), &previous)?;
+    state.update_component(id, |runtime| {
+        runtime.installed = Some(previous.clone());
+        runtime.lifecycle = LifecycleState::Stopped;
+        runtime.healthy = false;
+        runtime.pid = None;
+        runtime.busy = false;
+        runtime.progress_percent = None;
+        runtime.progress_label = None;
+        runtime.last_error = None;
+    });
+    state.log(
+        LogSource::from(id),
+        LogLevel::Warn,
+        format!("已回退到上一安装版本 {}", previous.version),
+    );
+    Ok(Some(previous))
+}
+
+fn previous_install_manifest(
+    root: &Path,
+    id: ComponentId,
+    current_version: &str,
+) -> AppResult<Option<InstallManifest>> {
+    let versions_dir = component_root(root, id).join("versions");
+    if !versions_dir.exists() {
+        return Ok(None);
+    }
+    let current = normalize_version(current_version);
+    let mut candidates = Vec::new();
+    for entry in fs::read_dir(&versions_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(ToOwned::to_owned) else {
+            continue;
+        };
+        let normalized = normalize_version(&name);
+        if normalized == current {
+            continue;
+        }
+        let Ok(executable_path) = locate_executable(&path, id) else {
+            continue;
+        };
+        let version = display_version(&name);
+        let asset_name = expected_asset_name(id, &version).unwrap_or_default();
+        let download_url = if asset_name.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "https://github.com/{}/releases/download/{}/{}",
+                definition(id).repository,
+                version,
+                asset_name
+            )
+        };
+        candidates.push(VersionCandidate {
+            parsed: semver::Version::parse(&normalized).ok(),
+            normalized,
+            manifest: InstallManifest {
+                version,
+                asset_name,
+                download_url,
+                sha256: String::new(),
+                installed_at: Utc::now().to_rfc3339(),
+                executable_path,
+            },
+        });
+    }
+    candidates.sort_by(compare_version_candidates);
+    Ok(candidates.pop().map(|candidate| candidate.manifest))
+}
+
+struct VersionCandidate {
+    parsed: Option<semver::Version>,
+    normalized: String,
+    manifest: InstallManifest,
+}
+
+fn compare_version_candidates(
+    left: &VersionCandidate,
+    right: &VersionCandidate,
+) -> std::cmp::Ordering {
+    match (&left.parsed, &right.parsed) {
+        (Some(left), Some(right)) => left.cmp(right),
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (None, None) => left.normalized.cmp(&right.normalized),
+    }
+}
+
+fn normalize_version(version: &str) -> String {
+    version.trim().trim_start_matches('v').to_string()
+}
+
+fn display_version(version: &str) -> String {
+    let version = version.trim();
+    if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{version}")
+    }
 }
 
 async fn download(
@@ -309,6 +426,7 @@ fn cleanup_old_versions(root: &Path, current: &str, keep: usize) -> AppResult<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::executable_name;
 
     #[test]
     fn parses_standard_and_starred_checksums() {
@@ -333,5 +451,45 @@ mod tests {
             parse_checksum(&format!("{hash}  .\\{name}"), name),
             Some(hash)
         );
+    }
+
+    #[test]
+    fn previous_install_manifest_prefers_latest_older_semver() {
+        let root = tempfile::tempdir().unwrap();
+        create_installed_version(root.path(), ComponentId::CpaManagerPlus, "1.9.0");
+        create_installed_version(root.path(), ComponentId::CpaManagerPlus, "1.10.5");
+        create_installed_version(root.path(), ComponentId::CpaManagerPlus, "1.11.0");
+
+        let previous =
+            previous_install_manifest(root.path(), ComponentId::CpaManagerPlus, "v1.11.0")
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(previous.version, "v1.10.5");
+        assert!(previous
+            .executable_path
+            .ends_with(executable_name(ComponentId::CpaManagerPlus)));
+    }
+
+    #[test]
+    fn previous_install_manifest_ignores_versions_without_executable() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(
+            component_root(root.path(), ComponentId::CpaManagerPlus)
+                .join("versions")
+                .join("1.10.5"),
+        )
+        .unwrap();
+
+        let previous =
+            previous_install_manifest(root.path(), ComponentId::CpaManagerPlus, "v1.11.0").unwrap();
+
+        assert!(previous.is_none());
+    }
+
+    fn create_installed_version(root: &Path, id: ComponentId, version: &str) {
+        let directory = component_root(root, id).join("versions").join(version);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join(executable_name(id)), "").unwrap();
     }
 }

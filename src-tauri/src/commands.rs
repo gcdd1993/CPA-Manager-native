@@ -153,6 +153,40 @@ async fn start_one(app: &AppHandle, state: &AppState, id: ComponentId) -> AppRes
         return Ok(());
     }
     if let Err(error) = process::start(app, state, id).await {
+        let original_error = error.to_string();
+        if should_rollback_after_start_error(&original_error) {
+            match installer::rollback_to_previous_version(state, id) {
+                Ok(Some(previous)) => {
+                    state.log(
+                        LogSource::from(id),
+                        LogLevel::Warn,
+                        format!(
+                            "启动 {} 失败，尝试使用上一版本 {} 重启：{}",
+                            id, previous.version, original_error
+                        ),
+                    );
+                    state.emit_snapshot(app);
+                    if let Err(retry_error) = process::start(app, state, id).await {
+                        let combined = format!(
+                            "启动失败；已尝试回退到 {} 但仍失败：{}（原错误：{}）",
+                            previous.version, retry_error, original_error
+                        );
+                        set_error(state, id, &combined);
+                        state.emit_snapshot(app);
+                        return Err(message(combined));
+                    }
+                    return Ok(());
+                }
+                Ok(None) => {}
+                Err(rollback_error) => {
+                    state.log(
+                        LogSource::from(id),
+                        LogLevel::Warn,
+                        format!("启动失败且无法回退到上一版本：{rollback_error}"),
+                    );
+                }
+            }
+        }
         set_error(state, id, &error.to_string());
         state.emit_snapshot(app);
         return Err(error);
@@ -174,6 +208,12 @@ pub(crate) async fn start_installed_components(app: &AppHandle, state: &AppState
             let _ = start_one(app, state, id).await;
         }
     }
+}
+
+fn should_rollback_after_start_error(error: &str) -> bool {
+    error.contains("无法启动组件")
+        || error.contains("进程在健康检查完成前退出")
+        || error.contains("启动超时")
 }
 
 pub(crate) async fn stop_managed_components(state: &AppState) {

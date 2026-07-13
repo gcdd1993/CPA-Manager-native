@@ -23,18 +23,20 @@ pub struct GithubRelease {
 
 pub async fn latest_release(client: &reqwest::Client, id: ComponentId) -> AppResult<GithubRelease> {
     let repository = definition(id).repository;
-    let url = format!("https://api.github.com/repos/{repository}/releases/latest");
-    let release = client
+    let url = format!("https://api.github.com/repos/{repository}/releases?per_page=10");
+    let releases = client
         .get(url)
         .send()
         .await?
         .error_for_status()?
-        .json::<GithubRelease>()
+        .json::<Vec<GithubRelease>>()
         .await?;
-    if release.draft || release.prerelease {
-        return Err(message("GitHub 返回的 latest Release 不是正式版本"));
-    }
-    Ok(release)
+    releases
+        .into_iter()
+        .find(|release| {
+            !release.draft && !release.prerelease && !is_blocked_release(id, &release.tag_name)
+        })
+        .ok_or_else(|| message("GitHub 未返回可安装的正式 Release"))
 }
 
 pub fn resolve_assets(
@@ -70,5 +72,35 @@ pub fn is_update_available(installed: Option<&str>, latest: Option<&str>) -> boo
     ) {
         (Ok(installed), Ok(latest)) => latest > installed,
         _ => latest != installed,
+    }
+}
+
+fn is_blocked_release(id: ComponentId, tag_name: &str) -> bool {
+    // CPA-Manager-Plus v1.11.0 Windows amd64 exits during fresh SQLite startup
+    // with "SQL logic error: out of memory (1)"; keep installs on v1.10.5 until
+    // an upstream fixed release supersedes it.
+    // https://github.com/seakee/CPA-Manager-Plus/issues/345
+    matches!(
+        (id, std::env::consts::OS, tag_name.trim_start_matches('v')),
+        (ComponentId::CpaManagerPlus, "windows", "1.11.0")
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(windows)]
+    fn blocks_cpa_manager_plus_windows_release_with_sqlite_startup_failure() {
+        assert!(is_blocked_release(ComponentId::CpaManagerPlus, "v1.11.0"));
+        assert!(!is_blocked_release(ComponentId::CpaManagerPlus, "v1.10.5"));
+        assert!(!is_blocked_release(ComponentId::Cliproxyapi, "v1.11.0"));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn release_blocklist_is_windows_scoped() {
+        assert!(!is_blocked_release(ComponentId::CpaManagerPlus, "v1.11.0"));
     }
 }
