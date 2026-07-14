@@ -79,7 +79,9 @@ pub struct ComponentSnapshot {
 pub struct AppSnapshot {
     pub platform: String,
     pub architecture: String,
+    pub manager_config_directory: String,
     pub data_directory: String,
+    pub launch_at_startup: bool,
     pub last_update_check: Option<String>,
     pub components: Vec<ComponentSnapshot>,
     pub logs: Vec<LogEntry>,

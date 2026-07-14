@@ -13,9 +13,12 @@ import {
   ExternalLink,
   FolderOpen,
   GitFork,
+  HardDrive,
   LoaderCircle,
+  Monitor,
   Moon,
   Play,
+  Power,
   RefreshCw,
   RotateCcw,
   ServerCog,
@@ -23,13 +26,27 @@ import {
   SquareTerminal,
   Sun,
 } from "lucide-react";
-import { getSnapshot, isTauri, runAppCommand } from "./api";
+import {
+  changeDataDirectory,
+  getSnapshot,
+  isTauri,
+  runAppCommand,
+  selectDataDirectory,
+  setLaunchAtStartup,
+} from "./api";
 import type {
   AppSnapshot,
   ComponentId,
   ComponentSnapshot,
   LifecycleState,
 } from "./types";
+
+type ThemePreference = "system" | "light" | "dark";
+type ResolvedTheme = Exclude<ThemePreference, "system">;
+
+function getSystemTheme(): ResolvedTheme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
 const lifecycleLabels: Record<LifecycleState, string> = {
   not_installed: "未安装",
@@ -199,17 +216,20 @@ function ComponentCard({
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
+  const [theme, setTheme] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem("cpa-manager-theme");
-    if (saved === "dark" || saved === "light") return saved;
-    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    if (saved === "system" || saved === "dark" || saved === "light") return saved;
+    return "system";
   });
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [activeView, setActiveView] = useState<"overview" | "logs" | "versions" | "settings">("overview");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [activeLog, setActiveLog] = useState<"all" | ComponentId>("all");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [selectedDataDirectory, setSelectedDataDirectory] = useState<string | null>(null);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -221,10 +241,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
+
+    setSystemTheme(media.matches ? "dark" : "light");
+    media.addEventListener("change", syncSystemTheme);
+    return () => media.removeEventListener("change", syncSystemTheme);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
     localStorage.setItem("cpa-manager-theme", theme);
-  }, [theme]);
+  }, [resolvedTheme, theme]);
 
   useEffect(() => {
     void loadSnapshot();
@@ -254,6 +285,48 @@ export default function App() {
     },
     [loadSnapshot],
   );
+
+  const chooseDataDirectory = useCallback(async () => {
+    setPending("select_data_directory");
+    setError(null);
+    try {
+      const selected = await selectDataDirectory();
+      if (selected) setSelectedDataDirectory(selected);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
+
+  const migrateDataDirectory = useCallback(async () => {
+    if (!selectedDataDirectory) return;
+    setPending("change_data_directory");
+    setError(null);
+    try {
+      setSnapshot(await changeDataDirectory(selectedDataDirectory));
+      setSelectedDataDirectory(null);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot, selectedDataDirectory]);
+
+  const toggleLaunchAtStartup = useCallback(async (enabled: boolean) => {
+    setPending("set_launch_at_startup");
+    setError(null);
+    try {
+      setSnapshot(await setLaunchAtStartup(enabled));
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
 
   const filteredLogs = useMemo(() => {
     if (!snapshot) return [];
@@ -291,6 +364,9 @@ export default function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
+      <div className="sr-only" aria-live="polite">
+        {pending ? "正在处理设置或组件命令" : "空闲"}
+      </div>
       <aside className="sidebar">
         <div className="brand-mark" title="CPA Manager Native">CM</div>
         <nav aria-label="主导航">
@@ -335,12 +411,15 @@ export default function App() {
             <button
               className="theme-toggle"
               type="button"
-              aria-label={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
-              aria-pressed={theme === "light"}
-              title={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
-              onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+              aria-label={theme === "system"
+                ? `当前跟随系统（${resolvedTheme === "dark" ? "深色" : "浅色"}），点击切换到${resolvedTheme === "dark" ? "浅色" : "深色"}主题`
+                : `切换到${resolvedTheme === "dark" ? "浅色" : "深色"}主题`}
+              title={theme === "system"
+                ? `跟随系统 · 当前${resolvedTheme === "dark" ? "深色" : "浅色"}`
+                : `切换到${resolvedTheme === "dark" ? "浅色" : "深色"}主题`}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
-              {theme === "dark" ? <Sun /> : <Moon />}
+              {theme === "system" ? <Monitor /> : resolvedTheme === "dark" ? <Sun /> : <Moon />}
             </button>
             <button
               className="secondary-button"
@@ -479,13 +558,70 @@ export default function App() {
               <div className="setting-row">
                 <div><strong>界面主题</strong><span>偏好会保存在本机</span></div>
                 <div className="segmented-control" aria-label="界面主题">
-                  <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><Sun />浅色</button>
-                  <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><Moon />深色</button>
+                  <button aria-pressed={theme === "system"} className={theme === "system" ? "active" : ""} onClick={() => setTheme("system")}><Monitor />跟随系统</button>
+                  <button aria-pressed={theme === "light"} className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><Sun />浅色</button>
+                  <button aria-pressed={theme === "dark"} className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><Moon />深色</button>
                 </div>
               </div>
               <div className="setting-row">
-                <div><strong>应用数据目录</strong><span>组件程序、配置和日志分开存储</span></div>
-                <code>{snapshot.data_directory}</code>
+                <div><strong>开机自启</strong><span>{snapshot.launch_at_startup ? "已随系统启动" : "仅手动启动"}</span></div>
+                <button
+                  className={`switch-control ${snapshot.launch_at_startup ? "on" : ""}`}
+                  type="button"
+                  role="switch"
+                  aria-checked={snapshot.launch_at_startup}
+                  disabled={pending === "set_launch_at_startup"}
+                  onClick={() => toggleLaunchAtStartup(!snapshot.launch_at_startup)}
+                >
+                  <span className="switch-track" aria-hidden="true"><span /></span>
+                  <Power />
+                  {snapshot.launch_at_startup ? "已开启" : "已关闭"}
+                </button>
+              </div>
+              <div className="setting-row directory-row">
+                <div className="setting-label">
+                  <span className="setting-icon"><HardDrive /></span>
+                  <div><strong>应用数据目录</strong><span>组件程序、配置、日志</span></div>
+                </div>
+                <div className="directory-actions">
+                  <code>{snapshot.data_directory}</code>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={Boolean(pending)}
+                    onClick={chooseDataDirectory}
+                  >
+                    {pending === "select_data_directory" ? <LoaderCircle className="spin" /> : <FolderOpen />}
+                    选择目录
+                  </button>
+                </div>
+              </div>
+              {selectedDataDirectory && selectedDataDirectory !== snapshot.data_directory && (
+                <div className="setting-row migration-row">
+                  <div><strong>待切换目录</strong><span>迁移完成后原目录保留</span></div>
+                  <div className="directory-actions">
+                    <code>{selectedDataDirectory}</code>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={Boolean(pending)}
+                      onClick={migrateDataDirectory}
+                    >
+                      {pending === "change_data_directory" ? <LoaderCircle className="spin" /> : <CheckCircle2 />}
+                      迁移并切换
+                    </button>
+                  </div>
+                </div>
+              )}
+              {selectedDataDirectory === snapshot.data_directory && (
+                <div className="setting-row migration-row muted-row">
+                  <div><strong>待切换目录</strong><span>已是当前目录</span></div>
+                  <code>{selectedDataDirectory}</code>
+                </div>
+              )}
+              <div className="setting-row">
+                <div><strong>固定配置目录</strong><span>Manager 设置文件</span></div>
+                <code>{snapshot.manager_config_directory}</code>
               </div>
               {snapshot.components.map((component) => (
                 <div className="setting-row" key={component.id}>

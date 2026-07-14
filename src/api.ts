@@ -6,7 +6,9 @@ export const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 const demoSnapshot: AppSnapshot = {
   platform: "Windows",
   architecture: "x86_64",
+  manager_config_directory: "C:\\Users\\User\\.cpamanager-native",
   data_directory: "C:\\Users\\User\\AppData\\Roaming\\CPA Manager Native",
+  launch_at_startup: false,
   last_update_check: null,
   components: [
     {
@@ -74,4 +76,33 @@ export async function runAppCommand(
   }
 
   return invoke<AppSnapshot>(command, componentId ? { componentId } : undefined);
+}
+
+export async function selectDataDirectory(): Promise<string | null> {
+  if (!isTauri()) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return "D:\\CPA-Manager-Data";
+  }
+
+  return invoke<string | null>("select_data_directory");
+}
+
+export async function changeDataDirectory(directory: string): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    demoSnapshot.data_directory = directory;
+    return demoSnapshot;
+  }
+
+  return invoke<AppSnapshot>("change_data_directory", { directory });
+}
+
+export async function setLaunchAtStartup(enabled: boolean): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    demoSnapshot.launch_at_startup = enabled;
+    return demoSnapshot;
+  }
+
+  return invoke<AppSnapshot>("set_launch_at_startup", { enabled });
 }

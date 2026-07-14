@@ -13,17 +13,29 @@ use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, RunEvent, WindowEvent,
+    AppHandle, Manager, RunEvent, WindowEvent,
 };
+use tauri_plugin_autostart::ManagerExt;
 
-use crate::{models::ComponentId, state::AppState};
+use crate::{
+    models::{ComponentId, LogLevel, LogSource},
+    state::AppState,
+};
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
-            let state = AppState::new(data_dir)?;
+            let default_data_dir = app.path().app_data_dir()?;
+            let config_dir = config::manager_config_dir()?;
+            let settings = config::load_manager_settings(&config_dir, &default_data_dir)?;
+            let state = AppState::new(config_dir, settings)?;
             app.manage(state.clone());
+            sync_launch_at_startup(app.handle(), &state);
 
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
@@ -86,6 +98,9 @@ pub fn run() {
             commands::stop_component,
             commands::start_all,
             commands::stop_all,
+            commands::select_data_directory,
+            commands::change_data_directory,
+            commands::set_launch_at_startup,
             commands::open_management_page,
             commands::open_log_directory,
             commands::open_repository,
@@ -106,4 +121,30 @@ pub fn run() {
                 });
             }
         });
+}
+
+fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {
+    let desired = state.launch_at_startup();
+    let result = if desired {
+        app.autolaunch().enable()
+    } else {
+        app.autolaunch().disable()
+    };
+    if let Err(error) = result {
+        state.log(
+            LogSource::App,
+            LogLevel::Warn,
+            format!("同步开机自启状态失败：{error}"),
+        );
+        return;
+    }
+
+    let actual = app.autolaunch().is_enabled().unwrap_or(desired);
+    if let Err(error) = state.set_launch_at_startup(actual) {
+        state.log(
+            LogSource::App,
+            LogLevel::Warn,
+            format!("保存开机自启状态失败：{error}"),
+        );
+    }
 }

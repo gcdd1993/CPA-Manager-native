@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use crate::error::{message, AppResult};
 
@@ -8,6 +11,84 @@ pub struct SecretKeyResult {
 }
 
 const SECRET_FILE_NAME: &str = "management-secret.txt";
+const MANAGER_CONFIG_DIR_NAME: &str = ".cpamanager-native";
+const MANAGER_SETTINGS_FILE_NAME: &str = "settings.json";
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ManagerSettings {
+    pub data_directory: PathBuf,
+    #[serde(default)]
+    pub launch_at_startup: bool,
+}
+
+impl ManagerSettings {
+    pub fn new(data_directory: PathBuf) -> Self {
+        Self {
+            data_directory,
+            launch_at_startup: false,
+        }
+    }
+}
+
+pub fn manager_config_dir() -> AppResult<PathBuf> {
+    let home = user_home_dir().ok_or_else(|| message("无法定位用户 HOME 目录"))?;
+    Ok(home.join(MANAGER_CONFIG_DIR_NAME))
+}
+
+pub fn load_manager_settings(
+    config_dir: &Path,
+    default_data_directory: &Path,
+) -> AppResult<ManagerSettings> {
+    fs::create_dir_all(config_dir)?;
+    let path = manager_settings_path(config_dir);
+    if !path.exists() {
+        let settings = ManagerSettings::new(default_data_directory.to_path_buf());
+        write_manager_settings(config_dir, &settings)?;
+        return Ok(settings);
+    }
+
+    let data = fs::read(&path)?;
+    let mut settings: ManagerSettings = serde_json::from_slice(&data)?;
+    if settings.data_directory.as_os_str().is_empty() || !settings.data_directory.is_absolute() {
+        settings.data_directory = default_data_directory.to_path_buf();
+        write_manager_settings(config_dir, &settings)?;
+    }
+    Ok(settings)
+}
+
+pub fn write_manager_settings(config_dir: &Path, settings: &ManagerSettings) -> AppResult<()> {
+    fs::create_dir_all(config_dir)?;
+    let path = manager_settings_path(config_dir);
+    let temporary = path.with_extension("json.tmp");
+    fs::write(&temporary, serde_json::to_vec_pretty(settings)?)?;
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    fs::rename(temporary, path)?;
+    Ok(())
+}
+
+fn manager_settings_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(MANAGER_SETTINGS_FILE_NAME)
+}
+
+fn user_home_dir() -> Option<PathBuf> {
+    env::var_os("HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            #[cfg(windows)]
+            {
+                env::var_os("USERPROFILE")
+                    .filter(|value| !value.is_empty())
+                    .map(PathBuf::from)
+            }
+            #[cfg(not(windows))]
+            {
+                None
+            }
+        })
+}
 
 pub fn ensure_cliproxy_secret(data_dir: &Path) -> AppResult<SecretKeyResult> {
     fs::create_dir_all(data_dir)?;

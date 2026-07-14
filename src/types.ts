@@ -41,7 +41,9 @@ export interface LogEntry {
 export interface AppSnapshot {
   platform: string;
   architecture: string;
+  manager_config_directory: string;
   data_directory: string;
+  launch_at_startup: boolean;
   last_update_check: string | null;
   components: ComponentSnapshot[];
   logs: LogEntry[];

@@ -1,12 +1,21 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use tauri::{AppHandle, State};
+use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt;
+use tokio::sync::oneshot;
 
 use crate::{
+    components::locate_executable,
     error::{message, AppResult},
     github::latest_release,
     installer,
-    models::{AppSnapshot, ComponentId, LifecycleState, LogLevel, LogSource},
+    models::{AppSnapshot, ComponentId, InstallManifest, LifecycleState, LogLevel, LogSource},
     process,
-    state::{component_is_installed, set_error, AppState},
+    state::{component_is_installed, component_root, set_error, write_manifest, AppState},
 };
 
 #[tauri::command]
@@ -107,6 +116,140 @@ pub async fn stop_all(app: AppHandle, state: State<'_, AppState>) -> AppResult<A
             stop_one(&app, &state, id).await?;
         }
     }
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn select_data_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<Option<String>> {
+    let current = state.root();
+    let (sender, receiver) = oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("选择 CPA 应用数据目录")
+        .set_directory(current)
+        .set_can_create_directories(true)
+        .pick_folder(move |folder| {
+            let _ = sender.send(folder);
+        });
+
+    let selected = receiver.await.map_err(|_| message("目录选择窗口已关闭"))?;
+    let Some(path) = selected else {
+        return Ok(None);
+    };
+    let path = path
+        .into_path()
+        .map_err(|error| message(format!("无法读取目录路径：{error}")))?;
+    Ok(Some(path.display().to_string()))
+}
+
+#[tauri::command]
+pub async fn change_data_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    directory: String,
+) -> AppResult<AppSnapshot> {
+    let state = state.inner().clone();
+    if let Some(id) = ComponentId::ALL
+        .into_iter()
+        .find(|id| state.with_component(*id, |runtime| runtime.busy))
+    {
+        return Err(message(format!(
+            "{id} 正在执行任务，请完成后再迁移数据目录"
+        )));
+    }
+
+    let (old_root, new_root) = prepare_migration_paths(&state, &directory)?;
+    let running_before: Vec<ComponentId> = ComponentId::ALL
+        .into_iter()
+        .filter(|id| state.with_component(*id, |runtime| runtime.pid.is_some()))
+        .collect();
+    for id in [ComponentId::CpaManagerPlus, ComponentId::Cliproxyapi] {
+        if running_before.contains(&id) {
+            stop_one(&app, &state, id).await?;
+        }
+    }
+
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        format!(
+            "开始迁移应用数据目录：{} -> {}",
+            old_root.display(),
+            new_root.display()
+        ),
+    );
+
+    let migration = tokio::task::spawn_blocking({
+        let old_root = old_root.clone();
+        let new_root = new_root.clone();
+        move || migrate_data_directory(&old_root, &new_root)
+    })
+    .await
+    .map_err(|error| message(format!("迁移任务异常结束：{error}")))
+    .and_then(|result| result);
+
+    if let Err(error) = migration {
+        state.log(
+            LogSource::App,
+            LogLevel::Error,
+            format!("迁移应用数据目录失败：{error}"),
+        );
+        restart_previously_running(&app, &state, &running_before).await;
+        state.emit_snapshot(&app);
+        return Err(error);
+    }
+
+    if let Err(error) = state.switch_data_directory(new_root.clone()) {
+        state.log(
+            LogSource::App,
+            LogLevel::Error,
+            format!("切换应用数据目录失败：{error}"),
+        );
+        restart_previously_running(&app, &state, &running_before).await;
+        state.emit_snapshot(&app);
+        return Err(error);
+    }
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        format!(
+            "应用数据目录已切换到 {}；原目录保留为回滚备份",
+            new_root.display()
+        ),
+    );
+    restart_previously_running(&app, &state, &running_before).await;
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub fn set_launch_at_startup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> AppResult<AppSnapshot> {
+    let autolaunch = app.autolaunch();
+    let result = if enabled {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    };
+    result.map_err(|error| message(format!("无法更新开机自启：{error}")))?;
+    let actual = autolaunch.is_enabled().unwrap_or(enabled);
+    state.set_launch_at_startup(actual)?;
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        if actual {
+            "开机自启已启用"
+        } else {
+            "开机自启已关闭"
+        },
+    );
+    state.emit_snapshot(&app);
     Ok(state.snapshot())
 }
 
@@ -223,4 +366,107 @@ pub(crate) async fn stop_managed_components(state: &AppState) {
             let _ = process::stop(state, id).await;
         }
     }
+}
+
+async fn restart_previously_running(app: &AppHandle, state: &AppState, running: &[ComponentId]) {
+    for id in ComponentId::ALL {
+        if running.contains(&id) && component_is_installed(state, id) {
+            let _ = start_one(app, state, id).await;
+        }
+    }
+}
+
+fn prepare_migration_paths(state: &AppState, directory: &str) -> AppResult<(PathBuf, PathBuf)> {
+    let old_root = state.root();
+    let new_root = PathBuf::from(directory.trim());
+    if new_root.as_os_str().is_empty() {
+        return Err(message("请选择新的应用数据目录"));
+    }
+    if !new_root.is_absolute() {
+        return Err(message("应用数据目录必须是绝对路径"));
+    }
+
+    fs::create_dir_all(&old_root)?;
+    fs::create_dir_all(&new_root)?;
+    let old_canonical = fs::canonicalize(&old_root)?;
+    let new_canonical = fs::canonicalize(&new_root)?;
+    if old_canonical == new_canonical {
+        return Err(message("新目录与当前应用数据目录相同"));
+    }
+    if new_canonical.starts_with(&old_canonical) || old_canonical.starts_with(&new_canonical) {
+        return Err(message("新旧应用数据目录不能互相包含"));
+    }
+
+    let config_canonical = fs::canonicalize(state.manager_config_dir())?;
+    if new_canonical == config_canonical
+        || new_canonical.starts_with(&config_canonical)
+        || config_canonical.starts_with(&new_canonical)
+    {
+        return Err(message("应用数据目录不能与固定配置目录互相包含"));
+    }
+
+    Ok((old_root, new_root))
+}
+
+fn migrate_data_directory(old_root: &Path, new_root: &Path) -> AppResult<()> {
+    copy_directory_contents(old_root, new_root)?;
+    rewrite_migrated_manifests(old_root, new_root)
+}
+
+fn copy_directory_contents(source: &Path, destination: &Path) -> AppResult<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let target_path = destination.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_directory_contents(&source_path, &target_path)?;
+        } else if file_type.is_file() {
+            if let Some(parent) = target_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&source_path, &target_path)?;
+        } else {
+            return Err(message(format!(
+                "数据目录包含暂不支持迁移的文件类型：{}",
+                source_path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn rewrite_migrated_manifests(old_root: &Path, new_root: &Path) -> AppResult<()> {
+    for id in ComponentId::ALL {
+        let manifest_path = component_root(new_root, id).join("current.json");
+        if !manifest_path.exists() {
+            continue;
+        }
+        let mut manifest: InstallManifest = serde_json::from_slice(&fs::read(&manifest_path)?)?;
+        manifest.executable_path = migrated_executable_path(old_root, new_root, id, &manifest)?;
+        write_manifest(&manifest_path, &manifest)?;
+    }
+    Ok(())
+}
+
+fn migrated_executable_path(
+    old_root: &Path,
+    new_root: &Path,
+    id: ComponentId,
+    manifest: &InstallManifest,
+) -> AppResult<PathBuf> {
+    if let Ok(relative) = manifest.executable_path.strip_prefix(old_root) {
+        return Ok(new_root.join(relative));
+    }
+
+    let version_root = component_root(new_root, id)
+        .join("versions")
+        .join(manifest.version.trim_start_matches('v'));
+    if version_root.exists() {
+        if let Ok(path) = locate_executable(&version_root, id) {
+            return Ok(path);
+        }
+    }
+    locate_executable(&component_root(new_root, id), id)
 }

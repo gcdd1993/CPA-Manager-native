@@ -58,8 +58,8 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     let expected_hash = parse_checksum(&checksum_text, &archive.name)
         .ok_or_else(|| message(format!("checksums.txt 中未找到 {}", archive.name)))?;
 
-    let download_path = state
-        .root()
+    let data_root = state.root();
+    let download_path = data_root
         .join("downloads")
         .join(format!("{}.part", archive.name));
     download(
@@ -87,7 +87,8 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     }
 
     let version = release.tag_name.trim_start_matches('v').to_string();
-    let root = component_root(state.root(), id);
+    let data_root = state.root();
+    let root = component_root(&data_root, id);
     fs::create_dir_all(root.join("versions"))?;
     let staging = root.join(format!("staging-{version}"));
     if staging.exists() {
@@ -161,7 +162,8 @@ pub fn rollback_to_previous_version(
     let Some(current) = state.with_component(id, |runtime| runtime.installed.clone()) else {
         return Ok(None);
     };
-    let Some(previous) = previous_install_manifest(state.root(), id, &current.version)? else {
+    let data_root = state.root();
+    let Some(previous) = previous_install_manifest(&data_root, id, &current.version)? else {
         return Ok(None);
     };
 
