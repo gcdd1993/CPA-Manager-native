@@ -145,20 +145,23 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog
+            ## Changelog for 0.0.2
 
             ### Added
-            - Initial CPA Manager Native desktop release for Windows, macOS, and Linux.
-            - One-click install, update, start, stop, and health monitoring for CLIProxyAPI and CPA-Manager-Plus.
-            - Automatic startup and shutdown for installed CPA Core and Manager components.
-            - Tray-first close behavior, with explicit quit from the tray menu.
-            - Automatic CLIProxyAPI remote-management secret generation and display.
-            - Manual update checks only, avoiding GitHub API rate-limit noise from background polling.
-            - GitHub Actions release pipeline for Windows NSIS, macOS app/DMG, and Linux deb/rpm/AppImage bundles.
+            - A system-aware theme preference alongside explicit light and dark modes.
+            - A launch-at-startup preference backed by native operating-system integration.
+            - An application data-directory picker with migration support that preserves the source directory.
+            - A fixed manager configuration directory, separate from the movable component data directory.
+            - Simplified Chinese documentation with English remaining the default README.
+            - Product screenshots covering the dashboard, installed versions, health and logs, and tray menu.
+            - Release packaging for macOS app/DMG and Linux deb/rpm/AppImage bundles.
 
-            ### Fixed
-            - Skips CPA-Manager-Plus v1.11.0 on Windows because of upstream startup failure seakee/CPA-Manager-Plus#345.
-            - Falls back to the previous installed component version when a newly installed component cannot pass startup health checks.
+            ### Changed
+            - Reworked the light theme with a muted warm palette and accessible semantic color tokens.
+            - Expanded the English README with setup, development, packaging, release, privacy, and troubleshooting guidance.
+            - Improved settings feedback, pending states, and accessibility announcements.
+
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.2/CHANGELOG.md
 
             Assets are unsigned unless signing secrets are configured.
           releaseDraft: ${{ github.ref_type != 'tag' }}

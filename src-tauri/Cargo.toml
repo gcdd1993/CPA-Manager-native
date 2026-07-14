@@ -1,6 +1,6 @@
 [package]
 name = "cpa-manager-native"
-version = "0.0.1"
+version = "0.0.2"
 description = "Native manager for CLIProxyAPI and CPA-Manager-Plus"
 authors = ["CPA Manager Native contributors"]
 edition = "2021"
