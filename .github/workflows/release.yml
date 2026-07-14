@@ -88,7 +88,7 @@ jobs:
             rustTargets: x86_64-apple-darwin
           - label: Linux x64
             platform: ubuntu-22.04
-            args: "--bundles deb,rpm,appimage"
+            args: "--bundles deb,rpm"
             rustTargets: ""
           - label: Windows x64
             platform: windows-latest
@@ -103,7 +103,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libfuse2 rpm
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils rpm
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -139,7 +139,6 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NO_STRIP: ${{ matrix.platform == 'ubuntu-22.04' && 'true' || '' }}
         with:
           tauriScript: npm run tauri
           args: ${{ matrix.args }}
@@ -155,7 +154,7 @@ jobs:
             - A fixed manager configuration directory, separate from the movable component data directory.
             - Simplified Chinese documentation with English remaining the default README.
             - Product screenshots covering the dashboard, installed versions, health and logs, and tray menu.
-            - Release packaging for macOS app/DMG and Linux deb/rpm/AppImage bundles.
+            - Release packaging for macOS app/DMG and Linux deb/rpm bundles.
 
             ### Changed
             - Reworked the light theme with a muted warm palette and accessible semantic color tokens.

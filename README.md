@@ -102,7 +102,7 @@ Download the installer for your platform from [Releases](../../releases).
 | Windows x64 | NSIS installer |
 | macOS Apple Silicon | `.app`, `.dmg` |
 | macOS Intel | `.app`, `.dmg` |
-| Linux x64 | `.deb`, `.rpm`, `.AppImage` |
+| Linux x64 | `.deb`, `.rpm` |
 
 Release assets are unsigned unless signing secrets are configured in the release pipeline. On macOS, unsigned builds may require approval in system security settings before first launch.
 
@@ -130,12 +130,12 @@ CPA-Manager-Plus is configured to connect to CLIProxyAPI at `http://127.0.0.1:83
 | Windows x64 | `windows_amd64.zip` | NSIS installer |
 | macOS Apple Silicon | `darwin_aarch64` / `darwin_arm64` archives | `.app`, `.dmg` |
 | macOS Intel | `darwin_amd64` archives | `.app`, `.dmg` |
-| Linux x64 | `linux_amd64.tar.gz` | `.deb`, `.rpm`, `.AppImage` |
+| Linux x64 | `linux_amd64.tar.gz` | `.deb`, `.rpm` |
 
 ## Known compatibility notes
 
 - CPA-Manager-Plus `v1.11.0` Windows amd64 is skipped because it exits during SQLite startup with `SQL logic error: out of memory (1)`. See [seakee/CPA-Manager-Plus#345](https://github.com/seakee/CPA-Manager-Plus/issues/345).
-- Linux AppImage builds use Ubuntu 22.04 and WebKitGTK 4.1 dependencies, following Tauri v2 packaging requirements.
+- Linux packages use Ubuntu 22.04 and WebKitGTK 4.1 dependencies, following Tauri v2 packaging requirements.
 
 ---
 
@@ -201,7 +201,7 @@ npm run tauri -- build --bundles nsis
 npm run tauri -- build --bundles app,dmg
 
 # Linux
-npm run tauri -- build --bundles deb,rpm,appimage
+npm run tauri -- build --bundles deb,rpm
 ```
 
 Linux package builds require the WebKitGTK 4.1 stack and packaging tools:

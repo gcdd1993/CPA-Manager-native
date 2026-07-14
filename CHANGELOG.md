@@ -17,7 +17,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - A fixed manager configuration directory, separate from the movable component data directory.
 - Simplified Chinese documentation with English remaining the default README.
 - Product screenshots covering the dashboard, installed versions, health and logs, and tray menu.
-- Release packaging for macOS app/DMG and Linux deb/rpm/AppImage bundles.
+- Release packaging for macOS app/DMG and Linux deb/rpm bundles.
 
 ### Changed
 

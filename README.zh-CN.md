@@ -102,7 +102,7 @@ CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://gi
 | Windows x64 | NSIS 安装器 |
 | macOS Apple Silicon | `.app`、`.dmg` |
 | macOS Intel | `.app`、`.dmg` |
-| Linux x64 | `.deb`、`.rpm`、`.AppImage` |
+| Linux x64 | `.deb`、`.rpm` |
 
 除非发布流水线配置了签名密钥，否则发布资产默认未签名。macOS 首次启动未签名构建时，可能需要在系统安全设置中手动允许。
 
@@ -130,12 +130,12 @@ CPA-Manager-Plus 会被配置为连接 `http://127.0.0.1:8317` 上的 CLIProxyAP
 | Windows x64 | `windows_amd64.zip` | NSIS 安装器 |
 | macOS Apple Silicon | `darwin_aarch64` / `darwin_arm64` 归档 | `.app`、`.dmg` |
 | macOS Intel | `darwin_amd64` 归档 | `.app`、`.dmg` |
-| Linux x64 | `linux_amd64.tar.gz` | `.deb`、`.rpm`、`.AppImage` |
+| Linux x64 | `linux_amd64.tar.gz` | `.deb`、`.rpm` |
 
 ## 已知兼容性说明
 
 - CPA-Manager-Plus `v1.11.0` Windows amd64 版本会在 SQLite 启动阶段因 `SQL logic error: out of memory (1)` 退出，因此会被跳过。见 [seakee/CPA-Manager-Plus#345](https://github.com/seakee/CPA-Manager-Plus/issues/345)。
-- Linux AppImage 基于 Ubuntu 22.04 和 WebKitGTK 4.1 依赖构建，遵循 Tauri v2 的 Linux 打包要求。
+- Linux 安装包基于 Ubuntu 22.04 和 WebKitGTK 4.1 依赖构建，遵循 Tauri v2 的 Linux 打包要求。
 
 ---
 
@@ -201,7 +201,7 @@ npm run tauri -- build --bundles nsis
 npm run tauri -- build --bundles app,dmg
 
 # Linux
-npm run tauri -- build --bundles deb,rpm,appimage
+npm run tauri -- build --bundles deb,rpm
 ```
 
 Linux 打包需要 WebKitGTK 4.1 依赖和相关打包工具：
