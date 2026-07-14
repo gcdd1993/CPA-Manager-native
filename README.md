@@ -245,3 +245,7 @@ PRD/        Product notes and design references
 ## Acknowledgements
 
 CPA Manager Native manages the upstream projects [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus). Those projects are distributed under their own licenses and release processes.
+
+## Friends
+
+- [Linux DO](https://linux.do/) - A community for technology and open-source enthusiasts.

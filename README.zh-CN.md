@@ -245,3 +245,7 @@ PRD/        产品说明与设计参考
 ## 致谢
 
 CPA Manager Native 管理上游项目 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 和 [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus)。这些项目遵循各自的许可证和发布流程。
+
+## 友情链接
+
+- [Linux DO](https://linux.do/) - 面向技术与开源爱好者的社区。
