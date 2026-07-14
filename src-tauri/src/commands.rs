@@ -10,12 +10,14 @@ use tokio::sync::oneshot;
 
 use crate::{
     components::locate_executable,
+    config::WebDavSettings,
     error::{message, AppResult},
     github::latest_release,
     installer,
     models::{AppSnapshot, ComponentId, InstallManifest, LifecycleState, LogLevel, LogSource},
     process,
     state::{component_is_installed, component_root, set_error, write_manifest, AppState},
+    webdav,
 };
 
 #[tauri::command]
@@ -251,6 +253,105 @@ pub fn set_launch_at_startup(
     );
     state.emit_snapshot(&app);
     Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub fn save_webdav_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: WebDavSettings,
+) -> AppResult<AppSnapshot> {
+    let mut next = state.settings();
+    next.webdav = settings;
+    state.replace_settings(next)?;
+    state.log(LogSource::App, LogLevel::Info, "WebDAV 同步设置已保存");
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn test_webdav_connection(
+    state: State<'_, AppState>,
+    settings: WebDavSettings,
+) -> AppResult<()> {
+    webdav::test(state.inner(), &settings).await
+}
+
+#[tauri::command]
+pub async fn upload_webdav_config(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<AppSnapshot> {
+    let state = state.inner().clone();
+    match webdav::upload(&state).await {
+        Ok(()) => {
+            update_webdav_status(&state, None)?;
+            state.log(
+                LogSource::App,
+                LogLevel::Info,
+                "WebDAV 配置上传完成（3 个配置文件白名单）",
+            );
+        }
+        Err(error) => {
+            update_webdav_status(&state, Some(error.to_string()))?;
+            state.log(
+                LogSource::App,
+                LogLevel::Error,
+                format!("WebDAV 配置上传失败：{error}"),
+            );
+            state.emit_snapshot(&app);
+            return Err(error);
+        }
+    }
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn download_webdav_config(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<AppSnapshot> {
+    let state = state.inner().clone();
+    if ComponentId::ALL
+        .into_iter()
+        .any(|id| state.with_component(id, |runtime| runtime.pid.is_some() || runtime.busy))
+    {
+        return Err(message(
+            "下载配置前请先停止 CPA Core 和 CPA-Manager-Plus，并等待安装或更新任务完成",
+        ));
+    }
+    match webdav::download(&state).await {
+        Ok(()) => {
+            update_webdav_status(&state, None)?;
+            state.log(
+                LogSource::App,
+                LogLevel::Info,
+                "WebDAV 配置下载并恢复完成，本地原文件已备份",
+            );
+        }
+        Err(error) => {
+            update_webdav_status(&state, Some(error.to_string()))?;
+            state.log(
+                LogSource::App,
+                LogLevel::Error,
+                format!("WebDAV 配置下载失败：{error}"),
+            );
+            state.emit_snapshot(&app);
+            return Err(error);
+        }
+    }
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+fn update_webdav_status(state: &AppState, error: Option<String>) -> AppResult<()> {
+    let mut next = state.settings();
+    if error.is_none() {
+        next.webdav.last_sync_at = Some(chrono::Utc::now().to_rfc3339());
+    }
+    next.webdav.last_error = error;
+    state.replace_settings(next)
 }
 
 #[tauri::command]

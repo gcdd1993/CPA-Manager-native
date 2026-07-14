@@ -7,6 +7,7 @@ mod installer;
 mod models;
 mod process;
 mod state;
+mod webdav;
 
 use std::time::Duration;
 
@@ -104,6 +105,10 @@ pub fn run() {
             commands::open_management_page,
             commands::open_log_directory,
             commands::open_repository,
+            commands::save_webdav_settings,
+            commands::test_webdav_connection,
+            commands::upload_webdav_config,
+            commands::download_webdav_config,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

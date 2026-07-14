@@ -162,6 +162,22 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .version-secret.unavailable { border-left: 2px solid var(--warning); }
 .version-secret .secondary-button { flex: 0 0 auto; }
 .settings-grid { display: grid; margin-top: 18px; border-block: 1px solid var(--line); }
+.webdav-panel { margin-top: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); }
+.webdav-heading { display: flex; align-items: flex-start; gap: 12px; }
+.webdav-heading h3 { margin: 1px 0 5px; font-size: 17px; }
+.webdav-heading p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.webdav-form { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-top: 18px; }
+.webdav-form label { display: grid; gap: 6px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.webdav-form input { width: 100%; min-width: 0; padding: 10px 11px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-raised); color: var(--text-primary); font: inherit; outline: none; box-sizing: border-box; }
+.webdav-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.webdav-meta { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-muted); font-size: 11px; }
+.webdav-meta svg { width: 16px; color: var(--accent); flex: 0 0 auto; }
+.webdav-meta span:last-child { margin-left: auto; white-space: nowrap; }
+.webdav-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.webdav-notice { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--success); font-size: 12px; }
+.webdav-notice svg { width: 16px; }
+.webdav-error { margin: 12px 0 0; }
+.danger-outline { color: var(--danger) !important; border-color: color-mix(in srgb, var(--danger) 45%, var(--line)) !important; }
 .setting-row { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
 .setting-row:last-child { border-bottom: 0; }
 .setting-row > div:first-child { display: grid; gap: 4px; }.setting-row strong { font-size: 13px; }.setting-row span { color: var(--text-muted); font-size: 11px; }
@@ -219,6 +235,9 @@ footer svg { width: 12px; height: 12px; }
 }
 
 @media (max-width: 720px) {
+  .webdav-form { grid-template-columns: 1fr; }
+  .webdav-meta { align-items: flex-start; flex-wrap: wrap; }
+  .webdav-meta span:last-child { width: 100%; margin-left: 24px; }
   .app-shell { display: block; }
   .sidebar { position: sticky; top: 0; width: 100%; height: 60px; flex-direction: row; justify-content: space-between; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .sidebar nav { display: flex; margin: 0; }.settings-button { margin: 0; }

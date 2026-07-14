@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   CircleAlert,
   CircleStop,
+  CloudDownload,
+  CloudUpload,
   Copy,
   Download,
   ExternalLink,
@@ -22,6 +24,7 @@ import {
   RefreshCw,
   RotateCcw,
   ServerCog,
+  ShieldCheck,
   Settings,
   SquareTerminal,
   Sun,
@@ -33,12 +36,16 @@ import {
   runAppCommand,
   selectDataDirectory,
   setLaunchAtStartup,
+  saveWebDavSettings,
+  syncWebDav,
+  testWebDavConnection,
 } from "./api";
 import type {
   AppSnapshot,
   ComponentId,
   ComponentSnapshot,
   LifecycleState,
+  WebDavSettings,
 } from "./types";
 
 type ThemePreference = "system" | "light" | "dark";
@@ -224,12 +231,14 @@ export default function App() {
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
   const resolvedTheme = theme === "system" ? systemTheme : theme;
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
-  const [activeView, setActiveView] = useState<"overview" | "logs" | "versions" | "settings">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "logs" | "versions" | "webdav" | "settings">("overview");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [activeLog, setActiveLog] = useState<"all" | ComponentId>("all");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [selectedDataDirectory, setSelectedDataDirectory] = useState<string | null>(null);
+  const [webdavDraft, setWebdavDraft] = useState<WebDavSettings | null>(null);
+  const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -268,6 +277,10 @@ export default function App() {
       void unlisten.then((dispose) => dispose());
     };
   }, [loadSnapshot]);
+
+  useEffect(() => {
+    if (snapshot && !webdavDraft) setWebdavDraft(snapshot.webdav);
+  }, [snapshot, webdavDraft]);
 
   const run = useCallback(
     async (command: string, componentId?: ComponentId) => {
@@ -327,6 +340,37 @@ export default function App() {
       setPending(null);
     }
   }, [loadSnapshot]);
+
+  const runWebDav = useCallback(async (action: "save" | "test" | "upload" | "download") => {
+    if (!webdavDraft) return;
+    if (action === "download" && !window.confirm("将用 WebDAV 中的配置覆盖本机配置。程序文件不会受影响，原配置会先备份。是否继续？")) return;
+    setPending(`webdav_${action}`);
+    setError(null);
+    setWebdavNotice(null);
+    try {
+      if (action === "test") {
+        await testWebDavConnection(webdavDraft);
+        setWebdavNotice("连接成功，WebDAV 目录可访问。");
+      } else {
+        const saved = await saveWebDavSettings(webdavDraft);
+        if (action === "save") {
+          setSnapshot(saved);
+          setWebdavDraft(saved.webdav);
+          setWebdavNotice("WebDAV 设置已保存。");
+        } else {
+          const next = await syncWebDav(action);
+          setSnapshot(next);
+          setWebdavDraft(next.webdav);
+          setWebdavNotice(action === "upload" ? "配置已上传到 WebDAV。" : "配置已从 WebDAV 恢复，本地原文件已备份。");
+        }
+      }
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot, webdavDraft]);
 
   const filteredLogs = useMemo(() => {
     if (!snapshot) return [];
@@ -391,6 +435,13 @@ export default function App() {
             aria-current={activeView === "versions" ? "page" : undefined}
             onClick={() => setActiveView("versions")}
           ><Boxes /></button>
+          <button
+            className={`nav-button ${activeView === "webdav" ? "active" : ""}`}
+            title="WebDAV 同步"
+            aria-label="WebDAV 同步"
+            aria-current={activeView === "webdav" ? "page" : undefined}
+            onClick={() => setActiveView("webdav")}
+          ><CloudUpload /></button>
         </nav>
         <button
           className={`nav-button settings-button ${activeView === "settings" ? "active" : ""}`}
@@ -544,6 +595,44 @@ export default function App() {
                 </article>
               ))}
             </div>
+          </section>
+        )}
+
+        {activeView === "webdav" && webdavDraft && (
+          <section className="view-section webdav-view" aria-labelledby="webdav-title">
+            <div className="view-heading">
+              <span className="section-kicker">CONFIGURATION SYNC</span>
+              <h2 id="webdav-title">WebDAV 同步</h2>
+              <p>在设备之间手动上传和恢复 CPA 相关配置。</p>
+            </div>
+              <section className="webdav-panel" aria-label="WebDAV 配置">
+                <div className="webdav-heading">
+                  <div className="setting-icon"><CloudUpload /></div>
+                  <div>
+                    <h3>同步设置</h3>
+                    <p>仅同步本程序 settings.json、CPA config.yaml 和 CPA-Manager-Plus config.json，不包含程序文件。</p>
+                  </div>
+                </div>
+                <div className="webdav-form">
+                  <label><span>WebDAV 地址</span><input type="url" placeholder="https://dav.example.com/dav/" value={webdavDraft.base_url} onChange={(event) => setWebdavDraft({ ...webdavDraft, base_url: event.target.value })} /></label>
+                  <label><span>用户名</span><input autoComplete="username" value={webdavDraft.username} onChange={(event) => setWebdavDraft({ ...webdavDraft, username: event.target.value })} /></label>
+                  <label><span>密码 / 应用密码</span><input type="password" autoComplete="current-password" value={webdavDraft.password} onChange={(event) => setWebdavDraft({ ...webdavDraft, password: event.target.value })} /></label>
+                  <label><span>远端文件路径</span><input value={webdavDraft.remote_path} onChange={(event) => setWebdavDraft({ ...webdavDraft, remote_path: event.target.value })} /></label>
+                </div>
+                <div className="webdav-meta">
+                  <ShieldCheck />
+                  <span>下载前需停止两个组件；覆盖前会备份到固定配置目录的 webdav-backups 文件夹。</span>
+                  <span>上次同步：{formatTime(snapshot.webdav.last_sync_at)}</span>
+                </div>
+                {snapshot.webdav.last_error && <div className="inline-error webdav-error"><CircleAlert /><span>{snapshot.webdav.last_error}</span></div>}
+                {webdavNotice && <div className="webdav-notice" role="status"><CheckCircle2 />{webdavNotice}</div>}
+                <div className="webdav-actions">
+                  <button className="secondary-button" disabled={Boolean(pending)} onClick={() => runWebDav("test")}>{pending === "webdav_test" ? <LoaderCircle className="spin" /> : <Activity />}测试连接</button>
+                  <button className="secondary-button" disabled={Boolean(pending)} onClick={() => runWebDav("save")}>{pending === "webdav_save" ? <LoaderCircle className="spin" /> : <Check />}保存设置</button>
+                  <button className="primary-button" disabled={Boolean(pending)} onClick={() => runWebDav("upload")}>{pending === "webdav_upload" ? <LoaderCircle className="spin" /> : <CloudUpload />}上传配置</button>
+                  <button className="secondary-button danger-outline" disabled={Boolean(pending)} onClick={() => runWebDav("download")}>{pending === "webdav_download" ? <LoaderCircle className="spin" /> : <CloudDownload />}下载并覆盖</button>
+                </div>
+              </section>
           </section>
         )}
 

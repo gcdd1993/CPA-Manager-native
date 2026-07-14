@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSnapshot, ComponentId } from "./types";
+import type { AppSnapshot, ComponentId, WebDavSettings } from "./types";
 
 export const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
@@ -9,6 +9,11 @@ const demoSnapshot: AppSnapshot = {
   manager_config_directory: "C:\\Users\\User\\.cpamanager-native",
   data_directory: "C:\\Users\\User\\AppData\\Roaming\\CPA Manager Native",
   launch_at_startup: false,
+  webdav: {
+    base_url: "", username: "", password: "",
+    remote_path: "CPA-Manager-Native/config-backup.zip",
+    last_sync_at: null, last_error: null,
+  },
   last_update_check: null,
   components: [
     {
@@ -105,4 +110,19 @@ export async function setLaunchAtStartup(enabled: boolean): Promise<AppSnapshot>
   }
 
   return invoke<AppSnapshot>("set_launch_at_startup", { enabled });
+}
+
+export async function saveWebDavSettings(settings: WebDavSettings): Promise<AppSnapshot> {
+  if (!isTauri()) { demoSnapshot.webdav = settings; return demoSnapshot; }
+  return invoke<AppSnapshot>("save_webdav_settings", { settings });
+}
+
+export async function testWebDavConnection(settings: WebDavSettings): Promise<void> {
+  if (!isTauri()) { await new Promise((resolve) => setTimeout(resolve, 300)); return; }
+  return invoke<void>("test_webdav_connection", { settings });
+}
+
+export async function syncWebDav(direction: "upload" | "download"): Promise<AppSnapshot> {
+  if (!isTauri()) { await new Promise((resolve) => setTimeout(resolve, 500)); return demoSnapshot; }
+  return invoke<AppSnapshot>(direction === "upload" ? "upload_webdav_config" : "download_webdav_config");
 }

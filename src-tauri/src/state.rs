@@ -140,6 +140,7 @@ impl AppState {
             manager_config_directory: self.manager_config_dir.display().to_string(),
             data_directory: settings.data_directory.display().to_string(),
             launch_at_startup: settings.launch_at_startup,
+            webdav: settings.webdav.clone(),
             last_update_check: inner.last_update_check.clone(),
             components,
             logs: inner.logs.iter().cloned().collect(),
@@ -215,6 +216,19 @@ impl AppState {
         next.launch_at_startup = enabled;
         write_manager_settings(&self.manager_config_dir, &next)?;
         *self.settings.lock().expect("settings lock poisoned") = next;
+        Ok(())
+    }
+
+    pub fn settings(&self) -> ManagerSettings {
+        self.settings
+            .lock()
+            .expect("settings lock poisoned")
+            .clone()
+    }
+
+    pub fn replace_settings(&self, settings: ManagerSettings) -> AppResult<()> {
+        write_manager_settings(&self.manager_config_dir, &settings)?;
+        *self.settings.lock().expect("settings lock poisoned") = settings;
         Ok(())
     }
 

@@ -44,7 +44,17 @@ export interface AppSnapshot {
   manager_config_directory: string;
   data_directory: string;
   launch_at_startup: boolean;
+  webdav: WebDavSettings;
   last_update_check: string | null;
   components: ComponentSnapshot[];
   logs: LogEntry[];
+}
+
+export interface WebDavSettings {
+  base_url: string;
+  username: string;
+  password: string;
+  remote_path: string;
+  last_sync_at: string | null;
+  last_error: string | null;
 }

@@ -19,6 +19,41 @@ pub struct ManagerSettings {
     pub data_directory: PathBuf,
     #[serde(default)]
     pub launch_at_startup: bool,
+    #[serde(default)]
+    pub webdav: WebDavSettings,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WebDavSettings {
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default = "default_webdav_remote_path")]
+    pub remote_path: String,
+    #[serde(default)]
+    pub last_sync_at: Option<String>,
+    #[serde(default)]
+    pub last_error: Option<String>,
+}
+
+fn default_webdav_remote_path() -> String {
+    "CPA-Manager-Native/config-backup.zip".to_string()
+}
+
+impl Default for WebDavSettings {
+    fn default() -> Self {
+        Self {
+            base_url: String::new(),
+            username: String::new(),
+            password: String::new(),
+            remote_path: default_webdav_remote_path(),
+            last_sync_at: None,
+            last_error: None,
+        }
+    }
 }
 
 impl ManagerSettings {
@@ -26,6 +61,7 @@ impl ManagerSettings {
         Self {
             data_directory,
             launch_at_startup: false,
+            webdav: WebDavSettings::default(),
         }
     }
 }

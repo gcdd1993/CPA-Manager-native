@@ -69,6 +69,7 @@ It does not replace CPA-Manager-Plus. It provides a stable native shell around t
 - Store app settings in the user's `~/.cpamanager-native` directory.
 - Use a configurable data directory for managed component binaries, manifests, logs, and config.
 - Generate and persist a CLIProxyAPI remote-management secret when the upstream config has an empty key.
+- Manually upload or restore the manager, CPA Core, and CPA-Manager-Plus configuration from the dedicated WebDAV Sync view. The allowlist excludes component binaries, versions, logs, and download caches, and restore creates a local backup first.
 - Display the recoverable management key in the installed versions view.
 - Preserve existing hashed upstream secrets without exposing or rotating them.
 

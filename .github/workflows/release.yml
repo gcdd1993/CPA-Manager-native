@@ -145,23 +145,19 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog for 0.0.2
+            ## Changelog for 0.0.3
 
             ### Added
-            - A system-aware theme preference alongside explicit light and dark modes.
-            - A launch-at-startup preference backed by native operating-system integration.
-            - An application data-directory picker with migration support that preserves the source directory.
-            - A fixed manager configuration directory, separate from the movable component data directory.
-            - Simplified Chinese documentation with English remaining the default README.
-            - Product screenshots covering the dashboard, installed versions, health and logs, and tray menu.
-            - Release packaging for macOS app/DMG and Linux deb/rpm bundles.
+            - A dedicated WebDAV Sync tab for server setup, connection testing, upload, and restore.
+            - Configuration-only backups for CPA Manager Native, CLIProxyAPI, and CPA-Manager-Plus.
+            - Timestamped local backups before downloaded configuration is applied.
 
-            ### Changed
-            - Reworked the light theme with a muted warm palette and accessible semantic color tokens.
-            - Expanded the English README with setup, development, packaging, release, privacy, and troubleshooting guidance.
-            - Improved settings feedback, pending states, and accessibility announcements.
+            ### Security
+            - Explicit three-file archive allowlist; program files and component versions are never synchronized.
+            - WebDAV passwords are excluded from uploaded archives.
+            - Downloads are size-limited and validated before replacing local configuration.
 
-            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.2/CHANGELOG.md
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.3/CHANGELOG.md
 
             Assets are unsigned unless signing secrets are configured.
           releaseDraft: ${{ github.ref_type != 'tag' }}

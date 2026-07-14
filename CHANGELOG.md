@@ -7,6 +7,20 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-07-14
+
+### Added
+
+- A dedicated WebDAV Sync tab for configuring a server, testing connectivity, and manually uploading or restoring configuration.
+- Configuration-only backups covering CPA Manager Native settings, CLIProxyAPI `config.yaml`, and CPA-Manager-Plus `config.json`.
+- Timestamped local backups before downloaded configuration is applied.
+
+### Security
+
+- WebDAV archives use an explicit three-file allowlist and reject executable, component-version, undeclared, duplicate, or path-traversal entries.
+- WebDAV passwords are excluded from uploaded archives, while machine-local data-directory and connection settings are preserved during restore.
+- Configuration downloads are size-limited, validated before local files are changed, and blocked while managed components are running or busy.
+
 ## [0.0.2] - 2026-07-14
 
 ### Added
@@ -42,6 +56,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Skips CPA-Manager-Plus v1.11.0 on Windows because of upstream startup failure seakee/CPA-Manager-Plus#345.
 - Falls back to the previous installed component version when a newly installed component cannot pass startup health checks.
 
-[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/gcdd1993/CPA-Manager-native/releases/tag/v0.0.1
