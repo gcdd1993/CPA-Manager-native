@@ -44,6 +44,7 @@ export interface AppSnapshot {
   manager_config_directory: string;
   data_directory: string;
   launch_at_startup: boolean;
+  lan_access_enabled: boolean;
   webdav: WebDavSettings;
   last_update_check: string | null;
   components: ComponentSnapshot[];

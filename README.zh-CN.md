@@ -192,6 +192,8 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 
 推送 `v*` tag 或手动启动发布工作流时，GitHub Actions 会构建发布包。
 
+Windows 版本支持应用内原地更新。顶部“检查更新”会同时检查 CPA Manager Native 和托管组件；发现新版应用后，可下载签名的 NSIS 更新包并以 `/UPDATE` 模式覆盖当前安装，保留应用数据、快捷方式和开机自启设置，无需先卸载。
+
 本地打包示例：
 
 ```bash
@@ -225,6 +227,13 @@ git tag -a vX.Y.Z -m "CPA Manager Native vX.Y.Z"
 git push origin master
 git push origin vX.Y.Z
 ```
+
+自动更新包必须使用固定的 Tauri updater 私钥签名。发布仓库需要配置以下 GitHub Actions Secrets：
+
+- `TAURI_SIGNING_PRIVATE_KEY`：与 `tauri.conf.json` 中公钥配对的私钥内容。
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：私钥密码；无密码密钥可留空。
+
+私钥不得提交到仓库。丢失私钥后，已安装版本将无法验证后续更新包。
 
 ## 项目结构
 

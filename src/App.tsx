@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { check as checkAppUpdate, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import {
   Activity,
   ArrowUpRight,
@@ -35,6 +36,7 @@ import {
   isTauri,
   runAppCommand,
   selectDataDirectory,
+  setLanAccess,
   setLaunchAtStartup,
   saveWebDavSettings,
   syncWebDav,
@@ -239,6 +241,7 @@ export default function App() {
   const [selectedDataDirectory, setSelectedDataDirectory] = useState<string | null>(null);
   const [webdavDraft, setWebdavDraft] = useState<WebDavSettings | null>(null);
   const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<string | null>(null);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -299,6 +302,75 @@ export default function App() {
     [loadSnapshot],
   );
 
+  const checkAllUpdates = useCallback(async () => {
+    setPending("check_updates");
+    setError(null);
+    setUpdateProgress(null);
+    let stoppedComponents: ComponentId[] = [];
+    try {
+      const next = await runAppCommand("check_updates");
+      setSnapshot(next);
+      if (!isTauri() || next.platform !== "Windows") return;
+
+      const update = await checkAppUpdate({ timeout: 15_000 });
+      if (!update) {
+        window.alert("CPA Manager Native 已是最新版本，组件版本检查也已完成。");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `发现 CPA Manager Native ${update.version}。\n\n是否下载并原地更新？更新过程会自动停止组件、覆盖当前版本并重新启动，不会卸载或删除应用数据。`,
+      );
+      if (!confirmed) {
+        await update.close();
+        return;
+      }
+
+      let downloaded = 0;
+      let total: number | undefined;
+      setPending("download_app_update");
+      setUpdateProgress("正在下载应用更新");
+      await update.download((event: DownloadEvent) => {
+        if (event.event === "Started") {
+          total = event.data.contentLength;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setUpdateProgress(total
+            ? `正在下载应用更新 ${Math.min(100, Math.round(downloaded / total * 100))}%`
+            : "正在下载应用更新");
+        } else {
+          setUpdateProgress("下载完成，准备安装");
+        }
+      });
+
+      stoppedComponents = next.components
+        .filter((component) => component.pid !== null)
+        .map((component) => component.id);
+      if (stoppedComponents.length > 0) {
+        setSnapshot(await runAppCommand("stop_all"));
+      }
+      setPending("install_app_update");
+      setUpdateProgress("正在原地安装并重新启动");
+      await update.install();
+    } catch (cause) {
+      if (stoppedComponents.length > 0) {
+        try {
+          let restored = await getSnapshot();
+          for (const componentId of stoppedComponents) {
+            restored = await runAppCommand("start_component", componentId);
+          }
+          setSnapshot(restored);
+        } catch {
+          await loadSnapshot();
+        }
+      }
+      setError(`检查或安装应用更新失败：${String(cause)}`);
+    } finally {
+      setPending(null);
+      setUpdateProgress(null);
+    }
+  }, [loadSnapshot]);
+
   const chooseDataDirectory = useCallback(async () => {
     setPending("select_data_directory");
     setError(null);
@@ -333,6 +405,19 @@ export default function App() {
     setError(null);
     try {
       setSnapshot(await setLaunchAtStartup(enabled));
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
+
+  const toggleLanAccess = useCallback(async (enabled: boolean) => {
+    setPending("set_lan_access");
+    setError(null);
+    try {
+      setSnapshot(await setLanAccess(enabled));
     } catch (cause) {
       setError(String(cause));
       await loadSnapshot();
@@ -475,10 +560,10 @@ export default function App() {
             <button
               className="secondary-button"
               disabled={Boolean(pending)}
-              onClick={() => run("check_updates")}
+              onClick={checkAllUpdates}
             >
-              <RefreshCw className={pending === "check_updates" ? "spin" : ""} />
-              检查更新
+              <RefreshCw className={pending?.includes("update") ? "spin" : ""} />
+              {updateProgress ?? "检查更新"}
             </button>
             <button
               className="primary-button"
@@ -641,7 +726,7 @@ export default function App() {
             <div className="view-heading">
               <span className="section-kicker">PREFERENCES</span>
               <h2 id="settings-title">设置</h2>
-              <p>桌面外观和本地运行目录。</p>
+              <p>桌面外观、本地运行与数据目录。</p>
             </div>
             <div className="settings-grid">
               <div className="setting-row">
@@ -665,6 +750,25 @@ export default function App() {
                   <span className="switch-track" aria-hidden="true"><span /></span>
                   <Power />
                   {snapshot.launch_at_startup ? "已开启" : "已关闭"}
+                </button>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>允许局域网访问</strong>
+                  <span>{snapshot.lan_access_enabled ? "API 与管理页面允许局域网连接" : "API 与管理页面仅允许本机访问"}</span>
+                </div>
+                <button
+                  className={`switch-control ${snapshot.lan_access_enabled ? "on" : ""}`}
+                  type="button"
+                  role="switch"
+                  aria-label="允许局域网访问 CLIProxyAPI"
+                  aria-checked={snapshot.lan_access_enabled}
+                  disabled={pending === "set_lan_access"}
+                  onClick={() => toggleLanAccess(!snapshot.lan_access_enabled)}
+                >
+                  <span className="switch-track" aria-hidden="true"><span /></span>
+                  {pending === "set_lan_access" ? <LoaderCircle className="spin" /> : <ServerCog />}
+                  {snapshot.lan_access_enabled ? "已开启" : "已关闭"}
                 </button>
               </div>
               <div className="setting-row directory-row">
@@ -712,12 +816,18 @@ export default function App() {
                 <div><strong>固定配置目录</strong><span>Manager 设置文件</span></div>
                 <code>{snapshot.manager_config_directory}</code>
               </div>
-              {snapshot.components.map((component) => (
-                <div className="setting-row" key={component.id}>
-                  <div><strong>{component.name}</strong><span>仅监听本机地址</span></div>
-                  <code>127.0.0.1:{component.port}</code>
-                </div>
-              ))}
+              {snapshot.components.map((component) => {
+                const lanEnabled = component.id === "cliproxyapi" && snapshot.lan_access_enabled;
+                return (
+                  <div className="setting-row" key={component.id}>
+                    <div>
+                      <strong>{component.name}</strong>
+                      <span>{lanEnabled ? "监听所有网络接口" : "仅监听本机地址"}</span>
+                    </div>
+                    <code>{lanEnabled ? "0.0.0.0" : "127.0.0.1"}:{component.port}</code>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

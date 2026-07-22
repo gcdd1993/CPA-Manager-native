@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 
 use crate::{
     components::locate_executable,
-    config::WebDavSettings,
+    config::{set_cliproxy_lan_access, WebDavSettings},
     error::{message, AppResult},
     github::latest_release,
     installer,
@@ -251,6 +251,59 @@ pub fn set_launch_at_startup(
             "开机自启已关闭"
         },
     );
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn set_lan_access(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> AppResult<AppSnapshot> {
+    let state = state.inner().clone();
+    let id = ComponentId::Cliproxyapi;
+    let lock = state.lock_for(id);
+    let _guard = lock.lock().await;
+    let was_running = state.with_component(id, |runtime| runtime.pid.is_some());
+
+    if was_running {
+        process::stop(&state, id).await?;
+    }
+
+    let data_dir = state.component_data_dir(id);
+    if let Err(config_error) = set_cliproxy_lan_access(&data_dir, enabled) {
+        let mut error_message = format!("无法更新局域网访问设置：{config_error}");
+        if was_running {
+            if let Err(restart_error) = process::start(&app, &state, id).await {
+                error_message.push_str(&format!("；恢复运行失败：{restart_error}"));
+                set_error(&state, id, &error_message);
+            }
+        }
+        state.log(LogSource::App, LogLevel::Error, &error_message);
+        state.emit_snapshot(&app);
+        return Err(message(error_message));
+    }
+
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        if enabled {
+            "CLIProxyAPI 局域网访问已开启（host: 0.0.0.0，allow-remote: true）"
+        } else {
+            "CLIProxyAPI 局域网访问已关闭（host: 127.0.0.1，allow-remote: false）"
+        },
+    );
+
+    if was_running {
+        if let Err(error) = process::start(&app, &state, id).await {
+            let error_message = format!("局域网访问设置已保存，但 CLIProxyAPI 重启失败：{error}");
+            set_error(&state, id, &error_message);
+            state.emit_snapshot(&app);
+            return Err(message(error_message));
+        }
+    }
+
     state.emit_snapshot(&app);
     Ok(state.snapshot())
 }

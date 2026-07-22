@@ -192,6 +192,8 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 
 GitHub Actions builds release bundles when a `v*` tag is pushed or the release workflow is started manually.
 
+The Windows build supports signed in-app, in-place updates. The top-bar update check covers both CPA Manager Native and its managed components. When a new app version is available, the signed NSIS updater runs in `/UPDATE` mode and preserves application data, shortcuts, and launch-at-startup settings without requiring a manual uninstall.
+
 Local packaging examples:
 
 ```bash
@@ -225,6 +227,13 @@ git tag -a vX.Y.Z -m "CPA Manager Native vX.Y.Z"
 git push origin master
 git push origin vX.Y.Z
 ```
+
+Updater artifacts must be signed with a stable Tauri updater private key. Configure these GitHub Actions secrets in the release repository:
+
+- `TAURI_SIGNING_PRIVATE_KEY`: the private key matching the public key in `tauri.conf.json`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the private-key password; leave it empty for an unencrypted key.
+
+Never commit the private key. Losing it prevents existing installations from validating future updates.
 
 ## Project layout
 

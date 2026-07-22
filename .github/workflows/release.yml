@@ -139,27 +139,28 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: npm run tauri
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog for 0.0.3
+            ## Changelog for 0.0.4
 
             ### Added
-            - A dedicated WebDAV Sync tab for server setup, connection testing, upload, and restore.
-            - Configuration-only backups for CPA Manager Native, CLIProxyAPI, and CPA-Manager-Plus.
-            - Timestamped local backups before downloaded configuration is applied.
+            - A persistent LAN-access switch for the CLIProxyAPI service and management page.
+            - Single-instance application handling that activates the existing window on repeated launch.
+            - Signed in-app updates for Windows through GitHub Releases.
 
-            ### Security
-            - Explicit three-file archive allowlist; program files and component versions are never synchronized.
-            - WebDAV passwords are excluded from uploaded archives.
-            - Downloads are size-limited and validated before replacing local configuration.
+            ### Changed
+            - Windows updates now install in place without requiring a manual uninstall.
+            - Managed components are stopped only after the application update has downloaded and are restored if installation preparation fails.
 
-            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.3/CHANGELOG.md
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.4/CHANGELOG.md
 
-            Assets are unsigned unless signing secrets are configured.
+            Application binaries are not Authenticode-signed; updater artifacts are signed with the Tauri updater key.
           releaseDraft: ${{ github.ref_type != 'tag' }}
           prerelease: false
           uploadWorkflowArtifacts: true

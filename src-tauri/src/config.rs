@@ -13,6 +13,8 @@ pub struct SecretKeyResult {
 const SECRET_FILE_NAME: &str = "management-secret.txt";
 const MANAGER_CONFIG_DIR_NAME: &str = ".cpamanager-native";
 const MANAGER_SETTINGS_FILE_NAME: &str = "settings.json";
+const CLIPROXY_LOCAL_HOST: &str = "127.0.0.1";
+const CLIPROXY_LAN_HOST: &str = "0.0.0.0";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ManagerSettings {
@@ -201,6 +203,121 @@ pub fn read_cliproxy_secret(data_dir: &Path) -> Option<String> {
             .and_then(|contents| read_secret_key(&contents))?;
         (!is_password_hash(&key)).then_some(key)
     })
+}
+
+pub fn cliproxy_lan_access_enabled(data_dir: &Path) -> bool {
+    fs::read_to_string(data_dir.join("config.yaml"))
+        .ok()
+        .is_some_and(|contents| {
+            read_cliproxy_host(&contents).as_deref() == Some(CLIPROXY_LAN_HOST)
+                && read_remote_management_access(&contents) == Some(true)
+        })
+}
+
+pub fn set_cliproxy_lan_access(data_dir: &Path, enabled: bool) -> AppResult<()> {
+    ensure_cliproxy_secret(data_dir)?;
+    let path = data_dir.join("config.yaml");
+    let contents = fs::read_to_string(&path)?;
+    let host = if enabled {
+        CLIPROXY_LAN_HOST
+    } else {
+        CLIPROXY_LOCAL_HOST
+    };
+    let updated = write_cliproxy_host(&contents, host);
+    let updated = write_remote_management_access(&updated, enabled);
+    if updated != contents {
+        replace_config_contents(&path, &updated)?;
+    }
+    Ok(())
+}
+
+fn read_cliproxy_host(contents: &str) -> Option<String> {
+    contents.lines().find_map(|line| {
+        if line != line.trim_start() || !line.starts_with("host:") {
+            return None;
+        }
+        let value = line
+            .trim_start_matches("host:")
+            .split('#')
+            .next()?
+            .trim()
+            .trim_matches(['\'', '"']);
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+fn write_cliproxy_host(contents: &str, host: &str) -> String {
+    let mut lines: Vec<String> = contents.lines().map(ToOwned::to_owned).collect();
+    if let Some(index) = lines
+        .iter()
+        .position(|line| line == line.trim_start() && line.starts_with("host:"))
+    {
+        lines[index] = format!("host: \"{host}\"");
+    } else {
+        lines.insert(0, format!("host: \"{host}\""));
+    }
+    format!("{}\n", lines.join("\n"))
+}
+
+fn read_remote_management_access(contents: &str) -> Option<bool> {
+    let mut in_remote_management = false;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        let indentation = line.len().saturating_sub(line.trim_start().len());
+        if indentation == 0 {
+            in_remote_management = trimmed == "remote-management:";
+            continue;
+        }
+        if in_remote_management && trimmed.starts_with("allow-remote:") {
+            let value = trimmed
+                .trim_start_matches("allow-remote:")
+                .split('#')
+                .next()?
+                .trim();
+            return match value {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            };
+        }
+    }
+    None
+}
+
+fn write_remote_management_access(contents: &str, enabled: bool) -> String {
+    let mut lines: Vec<String> = contents.lines().map(ToOwned::to_owned).collect();
+    let value = if enabled { "true" } else { "false" };
+    let remote_index = lines
+        .iter()
+        .position(|line| line.trim() == "remote-management:" && line == line.trim_start());
+
+    if let Some(remote_index) = remote_index {
+        let section_end = lines
+            .iter()
+            .enumerate()
+            .skip(remote_index + 1)
+            .find(|(_, line)| !line.trim().is_empty() && line == &line.trim_start())
+            .map(|(index, _)| index)
+            .unwrap_or(lines.len());
+        if let Some(option_index) = (remote_index + 1..section_end)
+            .find(|index| lines[*index].trim().starts_with("allow-remote:"))
+        {
+            let indentation = &lines[option_index]
+                [..lines[option_index].len() - lines[option_index].trim_start().len()];
+            lines[option_index] = format!("{indentation}allow-remote: {value}");
+        } else {
+            lines.insert(remote_index + 1, format!("  allow-remote: {value}"));
+        }
+    } else {
+        if !lines.last().is_none_or(|line| line.is_empty()) {
+            lines.push(String::new());
+        }
+        lines.extend([
+            "remote-management:".to_string(),
+            format!("  allow-remote: {value}"),
+        ]);
+    }
+    format!("{}\n", lines.join("\n"))
 }
 
 fn replace_config_secret(path: &Path, contents: &str, key: &str) -> AppResult<()> {
@@ -431,5 +548,58 @@ mod tests {
         let updated = disable_panel_auto_update(config);
         assert!(updated.contains("disable-auto-update-panel: true"));
         assert!(!updated.contains("disable-auto-update-panel: false"));
+    }
+
+    #[test]
+    fn reads_lan_access_from_top_level_host() {
+        let config = "host: \"0.0.0.0\"\nproxy:\n  host: \"127.0.0.1\"\n";
+        assert_eq!(read_cliproxy_host(config).as_deref(), Some("0.0.0.0"));
+    }
+
+    #[test]
+    fn toggles_cliproxy_host_without_touching_nested_hosts() {
+        let config = "host: \"127.0.0.1\"\nproxy:\n  host: \"upstream.local\"\n";
+        let enabled = write_cliproxy_host(config, CLIPROXY_LAN_HOST);
+        assert!(enabled.starts_with("host: \"0.0.0.0\"\n"));
+        assert!(enabled.contains("  host: \"upstream.local\""));
+
+        let disabled = write_cliproxy_host(&enabled, CLIPROXY_LOCAL_HOST);
+        assert!(disabled.starts_with("host: \"127.0.0.1\"\n"));
+    }
+
+    #[test]
+    fn inserts_missing_cliproxy_host_at_the_top() {
+        let updated = write_cliproxy_host("port: 8317\n", CLIPROXY_LAN_HOST);
+        assert_eq!(updated, "host: \"0.0.0.0\"\nport: 8317\n");
+    }
+
+    #[test]
+    fn persists_lan_access_in_cliproxy_config() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("config.yaml"),
+            "host: \"127.0.0.1\"\nport: 8317\nremote-management:\n  secret-key: \"key\"\n",
+        )
+        .unwrap();
+
+        set_cliproxy_lan_access(directory.path(), true).unwrap();
+        assert!(cliproxy_lan_access_enabled(directory.path()));
+        assert!(fs::read_to_string(directory.path().join("config.yaml"))
+            .unwrap()
+            .contains("  allow-remote: true"));
+
+        set_cliproxy_lan_access(directory.path(), false).unwrap();
+        assert!(!cliproxy_lan_access_enabled(directory.path()));
+        let disabled = fs::read_to_string(directory.path().join("config.yaml")).unwrap();
+        assert!(disabled.starts_with("host: \"127.0.0.1\"\n"));
+        assert!(disabled.contains("  allow-remote: false"));
+    }
+
+    #[test]
+    fn inserts_missing_remote_management_access_setting() {
+        let config = "host: \"0.0.0.0\"\nremote-management:\n  secret-key: \"key\"\n";
+        let updated = write_remote_management_access(config, true);
+        assert!(updated.contains("remote-management:\n  allow-remote: true\n"));
+        assert_eq!(read_remote_management_access(&updated), Some(true));
     }
 }

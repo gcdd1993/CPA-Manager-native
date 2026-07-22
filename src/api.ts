@@ -9,6 +9,7 @@ const demoSnapshot: AppSnapshot = {
   manager_config_directory: "C:\\Users\\User\\.cpamanager-native",
   data_directory: "C:\\Users\\User\\AppData\\Roaming\\CPA Manager Native",
   launch_at_startup: false,
+  lan_access_enabled: false,
   webdav: {
     base_url: "", username: "", password: "",
     remote_path: "CPA-Manager-Native/config-backup.zip",
@@ -110,6 +111,16 @@ export async function setLaunchAtStartup(enabled: boolean): Promise<AppSnapshot>
   }
 
   return invoke<AppSnapshot>("set_launch_at_startup", { enabled });
+}
+
+export async function setLanAccess(enabled: boolean): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    demoSnapshot.lan_access_enabled = enabled;
+    return demoSnapshot;
+  }
+
+  return invoke<AppSnapshot>("set_lan_access", { enabled });
 }
 
 export async function saveWebDavSettings(settings: WebDavSettings): Promise<AppSnapshot> {

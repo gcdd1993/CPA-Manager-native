@@ -25,12 +25,19 @@ use crate::{
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+
             let default_data_dir = app.path().app_data_dir()?;
             let config_dir = config::manager_config_dir()?;
             let settings = config::load_manager_settings(&config_dir, &default_data_dir)?;
@@ -46,13 +53,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .tooltip("CPA Manager Native")
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
-                    }
+                    "show" => show_main_window(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -63,12 +64,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
+                        show_main_window(tray.app_handle());
                     }
                 });
             if let Some(icon) = app.default_window_icon() {
@@ -102,6 +98,7 @@ pub fn run() {
             commands::select_data_directory,
             commands::change_data_directory,
             commands::set_launch_at_startup,
+            commands::set_lan_access,
             commands::open_management_page,
             commands::open_log_directory,
             commands::open_repository,
@@ -126,6 +123,14 @@ pub fn run() {
                 });
             }
         });
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {

@@ -3,6 +3,5 @@
   "identifier": "default",
   "description": "Minimal permissions for the main CPA Manager window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "updater:default"]
 }
-

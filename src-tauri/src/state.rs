@@ -13,7 +13,9 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
     components::COMPONENTS,
-    config::{read_cliproxy_secret, write_manager_settings, ManagerSettings},
+    config::{
+        cliproxy_lan_access_enabled, read_cliproxy_secret, write_manager_settings, ManagerSettings,
+    },
     error::AppResult,
     github::is_update_available,
     models::{
@@ -140,6 +142,12 @@ impl AppState {
             manager_config_directory: self.manager_config_dir.display().to_string(),
             data_directory: settings.data_directory.display().to_string(),
             launch_at_startup: settings.launch_at_startup,
+            lan_access_enabled: cliproxy_lan_access_enabled(
+                &settings
+                    .data_directory
+                    .join("data")
+                    .join(ComponentId::Cliproxyapi.directory_name()),
+            ),
             webdav: settings.webdav.clone(),
             last_update_check: inner.last_update_check.clone(),
             components,

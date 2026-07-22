@@ -7,6 +7,19 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-07-22
+
+### Added
+
+- Added a persistent LAN-access setting for CLIProxyAPI that updates both the bind host and remote-management access, with automatic restart when the service is running.
+- Added single-instance application handling so repeated launches activate the existing window instead of starting duplicate manager and component processes.
+- Added signed in-app updates for Windows using the latest GitHub Release updater manifest.
+
+### Changed
+
+- Windows NSIS application updates now run in in-place `/UPDATE` mode, preserving application data, shortcuts, and launch-at-startup settings without requiring a manual uninstall.
+- The update check now downloads the application update before stopping managed components and restores their previous running state if installation preparation fails.
+
 ## [0.0.3] - 2026-07-14
 
 ### Added
@@ -56,7 +69,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Skips CPA-Manager-Plus v1.11.0 on Windows because of upstream startup failure seakee/CPA-Manager-Plus#345.
 - Falls back to the previous installed component version when a newly installed component cannot pass startup health checks.
 
-[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/gcdd1993/CPA-Manager-native/releases/tag/v0.0.1
