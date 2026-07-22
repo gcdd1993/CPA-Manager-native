@@ -55,7 +55,7 @@ It does not replace CPA-Manager-Plus. It provides a stable native shell around t
 - Start and stop each installed component from the desktop UI.
 - Start installed components automatically when CPA Manager Native launches.
 - Stop managed components automatically when the desktop app exits.
-- Check port availability before starting a managed service.
+- Check port availability before starting a managed service; when occupied, stop the listening process automatically and start the managed service after the port is released.
 
 #### Health and recovery
 

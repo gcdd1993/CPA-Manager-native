@@ -33,7 +33,7 @@ pub async fn start(app: &AppHandle, state: &AppState, id: ComponentId) -> AppRes
         return Err(message("组件已经在运行"));
     }
     prepare_component_data(state, id)?;
-    ensure_port_available(definition.port)?;
+    reclaim_port(state, id, definition.port).await?;
 
     state.update_component(id, |runtime| {
         runtime.lifecycle = LifecycleState::Starting;
@@ -231,11 +231,186 @@ fn prepare_component_data(state: &AppState, id: ComponentId) -> AppResult<()> {
     Ok(())
 }
 
-fn ensure_port_available(port: u16) -> AppResult<()> {
+fn port_is_available(port: u16) -> bool {
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
-    TcpListener::bind(address)
-        .map(drop)
-        .map_err(|_| message(format!("端口 {port} 已被占用")))
+    TcpListener::bind(address).map(drop).is_ok()
+}
+
+async fn reclaim_port(state: &AppState, id: ComponentId, port: u16) -> AppResult<()> {
+    if port_is_available(port) {
+        return Ok(());
+    }
+
+    let current_pid = std::process::id();
+    let pids: Vec<u32> = listener_pids(port)?
+        .into_iter()
+        .filter(|pid| *pid != current_pid)
+        .collect();
+    if pids.is_empty() {
+        return Err(message(format!(
+            "端口 {port} 已被占用，但未能识别可停止的监听进程"
+        )));
+    }
+
+    let pid_list = pids
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join("、");
+    state.log(
+        LogSource::from(id),
+        LogLevel::Warn,
+        format!("端口 {port} 被 PID {pid_list} 占用，正在自动停止占用进程"),
+    );
+
+    let mut stop_errors = Vec::new();
+    for pid in &pids {
+        if let Err(error) = stop_port_process(*pid, false) {
+            stop_errors.push(format!("PID {pid}: {error}"));
+        }
+    }
+
+    if wait_for_port(port, Duration::from_millis(1500)).await {
+        state.log(
+            LogSource::from(id),
+            LogLevel::Info,
+            format!("端口 {port} 已释放，继续启动组件"),
+        );
+        return Ok(());
+    }
+
+    #[cfg(not(windows))]
+    for pid in &pids {
+        if let Err(error) = stop_port_process(*pid, true) {
+            stop_errors.push(format!("强制停止 PID {pid}: {error}"));
+        }
+    }
+
+    if wait_for_port(port, Duration::from_millis(3500)).await {
+        state.log(
+            LogSource::from(id),
+            LogLevel::Info,
+            format!("端口 {port} 已释放，继续启动组件"),
+        );
+        return Ok(());
+    }
+
+    let details = if stop_errors.is_empty() {
+        String::new()
+    } else {
+        format!("：{}", stop_errors.join("；"))
+    };
+    Err(message(format!(
+        "端口 {port} 仍被 PID {pid_list} 占用，自动停止失败{details}"
+    )))
+}
+
+async fn wait_for_port(port: u16, timeout: Duration) -> bool {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        if port_is_available(port) {
+            return true;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+#[cfg(windows)]
+fn listener_pids(port: u16) -> AppResult<Vec<u32>> {
+    let output = Command::new("netstat")
+        .args(["-ano", "-p", "tcp"])
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|error| message(format!("无法查询端口 {port} 的占用进程：{error}")))?;
+    if !output.status.success() {
+        return Err(message(format!("无法查询端口 {port} 的占用进程")));
+    }
+    Ok(parse_windows_listeners(
+        &String::from_utf8_lossy(&output.stdout),
+        port,
+    ))
+}
+
+#[cfg(windows)]
+fn parse_windows_listeners(output: &str, port: u16) -> Vec<u32> {
+    let port_suffix = format!(":{port}");
+    let mut pids = output
+        .lines()
+        .filter_map(|line| {
+            let fields: Vec<_> = line.split_whitespace().collect();
+            if fields.len() < 5
+                || !fields[0].eq_ignore_ascii_case("TCP")
+                || !fields[1].ends_with(&port_suffix)
+                || !fields[fields.len() - 2].eq_ignore_ascii_case("LISTENING")
+            {
+                return None;
+            }
+            fields.last()?.parse::<u32>().ok()
+        })
+        .collect::<Vec<_>>();
+    pids.sort_unstable();
+    pids.dedup();
+    pids
+}
+
+#[cfg(target_os = "linux")]
+fn listener_pids(port: u16) -> AppResult<Vec<u32>> {
+    let output = Command::new("fuser")
+        .args(["-n", "tcp", &port.to_string()])
+        .output()
+        .map_err(|error| message(format!("无法查询端口 {port} 的占用进程：{error}")))?;
+    Ok(parse_pid_list(&String::from_utf8_lossy(&output.stdout)))
+}
+
+#[cfg(target_os = "macos")]
+fn listener_pids(port: u16) -> AppResult<Vec<u32>> {
+    let output = Command::new("lsof")
+        .args(["-nP", "-t", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
+        .output()
+        .map_err(|error| message(format!("无法查询端口 {port} 的占用进程：{error}")))?;
+    Ok(parse_pid_list(&String::from_utf8_lossy(&output.stdout)))
+}
+
+#[cfg(not(windows))]
+fn parse_pid_list(output: &str) -> Vec<u32> {
+    let mut pids = output
+        .split_whitespace()
+        .filter_map(|value| value.parse::<u32>().ok())
+        .collect::<Vec<_>>();
+    pids.sort_unstable();
+    pids.dedup();
+    pids
+}
+
+#[cfg(windows)]
+fn stop_port_process(pid: u32, _force: bool) -> AppResult<()> {
+    let status = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(0x08000000)
+        .status()
+        .map_err(|error| message(format!("无法结束进程：{error}")))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(message(format!("taskkill 退出状态 {status}")))
+    }
+}
+
+#[cfg(not(windows))]
+fn stop_port_process(pid: u32, force: bool) -> AppResult<()> {
+    let signal = if force { "-KILL" } else { "-TERM" };
+    let status = Command::new("kill")
+        .args([signal, &pid.to_string()])
+        .status()
+        .map_err(|error| message(format!("无法结束进程：{error}")))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(message(format!("kill 退出状态 {status}")))
+    }
 }
 
 async fn service_health(state: &AppState, id: ComponentId) -> bool {
@@ -258,4 +433,24 @@ where
             state.log(LogSource::from(id), level, line);
         }
     });
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::parse_windows_listeners;
+
+    #[test]
+    fn parses_only_matching_tcp_listeners_and_deduplicates_pids() {
+        let output = r#"
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    0.0.0.0:8317           0.0.0.0:0              LISTENING       4321
+  TCP    [::]:8317              [::]:0                 LISTENING       4321
+  TCP    127.0.0.1:18317        0.0.0.0:0              LISTENING       9876
+  TCP    127.0.0.1:8317         127.0.0.1:50000        ESTABLISHED     5555
+  UDP    0.0.0.0:8317           *:*                                    2468
+"#;
+
+        assert_eq!(parse_windows_listeners(output, 8317), vec![4321]);
+        assert_eq!(parse_windows_listeners(output, 18317), vec![9876]);
+    }
 }

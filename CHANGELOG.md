@@ -7,6 +7,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Managed-service startup now identifies and stops processes occupying the required local ports, waits for the ports to be released, and then starts the managed services automatically.
+
 ## [0.0.4] - 2026-07-22
 
 ### Added
