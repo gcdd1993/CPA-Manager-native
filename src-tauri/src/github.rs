@@ -11,6 +11,8 @@ pub struct GithubAsset {
     pub name: String,
     pub browser_download_url: String,
     pub size: u64,
+    #[serde(default)]
+    pub digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,7 +44,7 @@ pub async fn latest_release(client: &reqwest::Client, id: ComponentId) -> AppRes
 pub fn resolve_assets(
     id: ComponentId,
     release: &GithubRelease,
-) -> AppResult<(GithubAsset, GithubAsset)> {
+) -> AppResult<(GithubAsset, Option<GithubAsset>)> {
     let expected = expected_asset_name(id, &release.tag_name)?;
     let archive = release
         .assets
@@ -54,9 +56,20 @@ pub fn resolve_assets(
         .assets
         .iter()
         .find(|asset| asset.name.eq_ignore_ascii_case("checksums.txt"))
-        .cloned()
-        .ok_or_else(|| message("Release 未提供 checksums.txt，已阻止自动安装"))?;
+        .cloned();
+    if checksums.is_none() && github_sha256(&archive).is_none() {
+        return Err(message(
+            "Release 未提供 checksums.txt 或 GitHub SHA-256 摘要，已阻止自动安装",
+        ));
+    }
     Ok((archive, checksums))
+}
+
+pub fn github_sha256(asset: &GithubAsset) -> Option<String> {
+    let digest = asset.digest.as_deref()?;
+    let hash = digest.strip_prefix("sha256:")?;
+    (hash.len() == 64 && hash.chars().all(|value| value.is_ascii_hexdigit()))
+        .then(|| hash.to_string())
 }
 
 pub fn is_update_available(installed: Option<&str>, latest: Option<&str>) -> bool {
@@ -91,11 +104,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn reads_github_sha256_asset_digest() {
+        let hash = "a".repeat(64);
+        let asset = GithubAsset {
+            name: "octopus-windows-x86_64.zip".into(),
+            browser_download_url: String::new(),
+            size: 1,
+            digest: Some(format!("sha256:{hash}")),
+        };
+        assert_eq!(github_sha256(&asset), Some(hash));
+    }
+
+    #[test]
     #[cfg(windows)]
     fn blocks_cpa_manager_plus_windows_release_with_sqlite_startup_failure() {
         assert!(is_blocked_release(ComponentId::CpaManagerPlus, "v1.11.0"));
         assert!(!is_blocked_release(ComponentId::CpaManagerPlus, "v1.10.5"));
         assert!(!is_blocked_release(ComponentId::Cliproxyapi, "v1.11.0"));
+        assert!(!is_blocked_release(ComponentId::Octopus, "v1.11.0"));
     }
 
     #[test]

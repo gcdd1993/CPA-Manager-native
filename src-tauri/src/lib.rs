@@ -99,6 +99,8 @@ pub fn run() {
             commands::change_data_directory,
             commands::set_launch_at_startup,
             commands::set_lan_access,
+            commands::set_component_auto_start,
+            commands::set_component_port,
             commands::open_management_page,
             commands::open_log_directory,
             commands::open_repository,

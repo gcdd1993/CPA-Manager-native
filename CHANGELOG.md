@@ -9,6 +9,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- Added per-component startup preferences and configurable service ports, with conflict validation and automatic restart when changing a running component's port.
+- Added full lifecycle support for Hureru/octopus, including GitHub Release discovery, platform asset matching, SHA-256 verification, installation, startup, health checks, logs, rollback, and WebDAV configuration sync.
 - Managed-service startup now identifies and stops processes occupying the required local ports, waits for the ports to be released, and then starts the managed services automatically.
 
 ## [0.0.4] - 2026-07-22

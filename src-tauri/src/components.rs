@@ -18,7 +18,7 @@ pub struct ComponentDefinition {
     pub management_path: &'static str,
 }
 
-pub const COMPONENTS: [ComponentDefinition; 2] = [
+pub const COMPONENTS: [ComponentDefinition; 3] = [
     ComponentDefinition {
         id: ComponentId::Cliproxyapi,
         name: "CLIProxyAPI",
@@ -40,6 +40,17 @@ pub const COMPONENTS: [ComponentDefinition; 2] = [
         port: 18317,
         health_path: "/usage-service/info",
         management_path: "/management.html",
+    },
+    ComponentDefinition {
+        id: ComponentId::Octopus,
+        name: "Octopus",
+        short_name: "Octopus",
+        description: "面向个人的 LLM API 聚合与负载均衡服务",
+        repository: "Hureru/octopus",
+        executable_stem: "octopus",
+        port: 8080,
+        health_path: "/",
+        management_path: "/",
     },
 ];
 
@@ -63,6 +74,8 @@ pub fn expected_asset_name(id: ComponentId, version: &str) -> AppResult<String> 
         (ComponentId::Cliproxyapi, "aarch64") => "aarch64",
         (ComponentId::CpaManagerPlus, "x86_64") => "amd64",
         (ComponentId::CpaManagerPlus, "aarch64") => "arm64",
+        (ComponentId::Octopus, "x86_64") => "x86_64",
+        (ComponentId::Octopus, "aarch64") => "arm64",
         (_, other) => return Err(message(format!("暂不支持当前架构：{other}"))),
     };
     let extension = if os == "windows" { "zip" } else { "tar.gz" };
@@ -71,6 +84,7 @@ pub fn expected_asset_name(id: ComponentId, version: &str) -> AppResult<String> 
         ComponentId::CpaManagerPlus => {
             format!("cpa-manager-plus_v{version}_{os}_{arch}.{extension}")
         }
+        ComponentId::Octopus => format!("octopus-{os}-{arch}.zip"),
     })
 }
 
@@ -113,5 +127,13 @@ mod tests {
         let name = expected_asset_name(ComponentId::Cliproxyapi, "v1.2.3").unwrap();
         assert!(!name.contains("no-plugin"));
         assert!(name.contains("1.2.3"));
+    }
+
+    #[test]
+    fn octopus_asset_name_matches_upstream_release_convention() {
+        let name = expected_asset_name(ComponentId::Octopus, "v0.8.40").unwrap();
+        assert!(name.starts_with("octopus-"));
+        assert!(name.ends_with(".zip"));
+        assert!(!name.contains("0.8.40"));
     }
 }

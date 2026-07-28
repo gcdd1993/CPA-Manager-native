@@ -20,6 +20,7 @@ import {
   LoaderCircle,
   Monitor,
   Moon,
+  Network,
   Play,
   Power,
   RefreshCw,
@@ -37,6 +38,8 @@ import {
   runAppCommand,
   selectDataDirectory,
   setLanAccess,
+  setComponentAutoStart,
+  setComponentPort,
   setLaunchAtStartup,
   saveWebDavSettings,
   syncWebDav,
@@ -79,7 +82,9 @@ function formatTime(value: string | null) {
 }
 
 function ComponentIcon({ id }: { id: ComponentId }) {
-  return id === "cliproxyapi" ? <ServerCog /> : <Boxes />;
+  if (id === "cliproxyapi") return <ServerCog />;
+  if (id === "octopus") return <Network />;
+  return <Boxes />;
 }
 
 function StatusPill({ component }: { component: ComponentSnapshot }) {
@@ -242,6 +247,7 @@ export default function App() {
   const [webdavDraft, setWebdavDraft] = useState<WebDavSettings | null>(null);
   const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState<string | null>(null);
+  const [portDrafts, setPortDrafts] = useState<Partial<Record<ComponentId, string>>>({});
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -284,6 +290,17 @@ export default function App() {
   useEffect(() => {
     if (snapshot && !webdavDraft) setWebdavDraft(snapshot.webdav);
   }, [snapshot, webdavDraft]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    setPortDrafts((current) => {
+      const next = { ...current };
+      for (const component of snapshot.components) {
+        if (next[component.id] === undefined) next[component.id] = String(component.port);
+      }
+      return next;
+    });
+  }, [snapshot]);
 
   const run = useCallback(
     async (command: string, componentId?: ComponentId) => {
@@ -425,6 +442,39 @@ export default function App() {
       setPending(null);
     }
   }, [loadSnapshot]);
+
+  const toggleComponentAutoStart = useCallback(async (componentId: ComponentId, enabled: boolean) => {
+    setPending(`set_component_auto_start:${componentId}`);
+    setError(null);
+    try {
+      setSnapshot(await setComponentAutoStart(componentId, enabled));
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
+
+  const saveComponentPort = useCallback(async (componentId: ComponentId) => {
+    const value = Number(portDrafts[componentId]);
+    if (!Number.isInteger(value) || value < 1 || value > 65535) {
+      setError("端口必须是 1 到 65535 之间的整数");
+      return;
+    }
+    setPending(`set_component_port:${componentId}`);
+    setError(null);
+    try {
+      const next = await setComponentPort(componentId, value);
+      setSnapshot(next);
+      setPortDrafts((current) => ({ ...current, [componentId]: String(value) }));
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot, portDrafts]);
 
   const runWebDav = useCallback(async (action: "save" | "test" | "upload" | "download") => {
     if (!webdavDraft) return;
@@ -695,7 +745,7 @@ export default function App() {
                   <div className="setting-icon"><CloudUpload /></div>
                   <div>
                     <h3>同步设置</h3>
-                    <p>仅同步本程序 settings.json、CPA config.yaml 和 CPA-Manager-Plus config.json，不包含程序文件。</p>
+                    <p>仅同步本程序及各托管组件的配置文件，不包含程序文件或数据库。</p>
                   </div>
                 </div>
                 <div className="webdav-form">
@@ -706,7 +756,7 @@ export default function App() {
                 </div>
                 <div className="webdav-meta">
                   <ShieldCheck />
-                  <span>下载前需停止两个组件；覆盖前会备份到固定配置目录的 webdav-backups 文件夹。</span>
+                  <span>下载前需停止所有组件；覆盖前会备份到固定配置目录的 webdav-backups 文件夹。</span>
                   <span>上次同步：{formatTime(snapshot.webdav.last_sync_at)}</span>
                 </div>
                 {snapshot.webdav.last_error && <div className="inline-error webdav-error"><CircleAlert /><span>{snapshot.webdav.last_error}</span></div>}
@@ -818,13 +868,51 @@ export default function App() {
               </div>
               {snapshot.components.map((component) => {
                 const lanEnabled = component.id === "cliproxyapi" && snapshot.lan_access_enabled;
+                const autoStartPending = pending === `set_component_auto_start:${component.id}`;
+                const portPending = pending === `set_component_port:${component.id}`;
+                const portChanged = portDrafts[component.id] !== String(component.port);
                 return (
-                  <div className="setting-row" key={component.id}>
+                  <div className="setting-row component-setting-row" key={component.id}>
                     <div>
                       <strong>{component.name}</strong>
                       <span>{lanEnabled ? "监听所有网络接口" : "仅监听本机地址"}</span>
                     </div>
-                    <code>{lanEnabled ? "0.0.0.0" : "127.0.0.1"}:{component.port}</code>
+                    <div className="component-setting-actions">
+                      <button
+                        className={`switch-control ${component.auto_start ? "on" : ""}`}
+                        type="button"
+                        role="switch"
+                        aria-label={`${component.name} 随应用自动启动`}
+                        aria-checked={component.auto_start}
+                        disabled={Boolean(pending)}
+                        onClick={() => toggleComponentAutoStart(component.id, !component.auto_start)}
+                      >
+                        <span className="switch-track" aria-hidden="true"><span /></span>
+                        {autoStartPending ? <LoaderCircle className="spin" /> : <Power />}
+                        自动启动
+                      </button>
+                      <label className="port-control">
+                        <span>端口</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={65535}
+                          value={portDrafts[component.id] ?? component.port}
+                          disabled={Boolean(pending)}
+                          onChange={(event) => setPortDrafts((current) => ({ ...current, [component.id]: event.target.value }))}
+                          onKeyDown={(event) => { if (event.key === "Enter") void saveComponentPort(component.id); }}
+                        />
+                      </label>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={Boolean(pending) || !portChanged}
+                        onClick={() => saveComponentPort(component.id)}
+                      >
+                        {portPending ? <LoaderCircle className="spin" /> : <Check />}
+                        应用
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -840,13 +928,19 @@ export default function App() {
               <h2>{activeView === "logs" ? "组件运行日志" : "运行日志"}</h2>
             </div>
             <div className="segmented-control" aria-label="日志筛选">
-              {(["all", "cliproxyapi", "cpa-manager-plus"] as const).map((value) => (
+              {(["all", "cliproxyapi", "cpa-manager-plus", "octopus"] as const).map((value) => (
                 <button
                   key={value}
                   className={activeLog === value ? "active" : ""}
                   onClick={() => setActiveLog(value)}
                 >
-                  {value === "all" ? "全部" : value === "cliproxyapi" ? "Core" : "Manager"}
+                  {value === "all"
+                    ? "全部"
+                    : value === "cliproxyapi"
+                      ? "Core"
+                      : value === "cpa-manager-plus"
+                        ? "Manager"
+                        : "Octopus"}
                 </button>
               ))}
             </div>

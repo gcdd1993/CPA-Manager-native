@@ -28,16 +28,13 @@ pub fn get_app_snapshot(state: State<'_, AppState>) -> AppSnapshot {
 #[tauri::command]
 pub async fn check_updates(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppSnapshot> {
     let state = state.inner().clone();
-    let (core, manager) = futures_util::future::join(
-        latest_release(&state.client, ComponentId::Cliproxyapi),
-        latest_release(&state.client, ComponentId::CpaManagerPlus),
-    )
+    let releases = futures_util::future::join_all(ComponentId::ALL.into_iter().map(|id| {
+        let state = &state;
+        async move { (id, latest_release(&state.client, id).await) }
+    }))
     .await;
     let mut errors = Vec::new();
-    for (id, result) in [
-        (ComponentId::Cliproxyapi, core),
-        (ComponentId::CpaManagerPlus, manager),
-    ] {
+    for (id, result) in releases {
         match result {
             Ok(release) => state.set_latest_version(id, release.tag_name),
             Err(error) => errors.push(error.to_string()),
@@ -112,7 +109,7 @@ pub async fn start_all(app: AppHandle, state: State<'_, AppState>) -> AppResult<
 #[tauri::command]
 pub async fn stop_all(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppSnapshot> {
     let state = state.inner().clone();
-    for id in [ComponentId::CpaManagerPlus, ComponentId::Cliproxyapi] {
+    for id in ComponentId::ALL.into_iter().rev() {
         let running = state.with_component(id, |runtime| runtime.pid.is_some());
         if running {
             stop_one(&app, &state, id).await?;
@@ -168,7 +165,7 @@ pub async fn change_data_directory(
         .into_iter()
         .filter(|id| state.with_component(*id, |runtime| runtime.pid.is_some()))
         .collect();
-    for id in [ComponentId::CpaManagerPlus, ComponentId::Cliproxyapi] {
+    for id in ComponentId::ALL.into_iter().rev() {
         if running_before.contains(&id) {
             stop_one(&app, &state, id).await?;
         }
@@ -309,6 +306,107 @@ pub async fn set_lan_access(
 }
 
 #[tauri::command]
+pub fn set_component_auto_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    component_id: ComponentId,
+    enabled: bool,
+) -> AppResult<AppSnapshot> {
+    state.set_component_auto_start(component_id, enabled)?;
+    state.log(
+        LogSource::from(component_id),
+        LogLevel::Info,
+        if enabled {
+            "已设置为随应用自动启动"
+        } else {
+            "已关闭随应用自动启动"
+        },
+    );
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn set_component_port(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    component_id: ComponentId,
+    port: u16,
+) -> AppResult<AppSnapshot> {
+    if port == 0 {
+        return Err(message("端口必须在 1 到 65535 之间"));
+    }
+    if let Some(conflict) = ComponentId::ALL
+        .into_iter()
+        .find(|id| *id != component_id && state.component_port(*id) == port)
+    {
+        return Err(message(format!(
+            "端口 {port} 已分配给 {}",
+            crate::components::definition(conflict).name
+        )));
+    }
+
+    let state = state.inner().clone();
+    let lock = state.lock_for(component_id);
+    let _guard = lock.lock().await;
+    let dependent_lock = (component_id == ComponentId::Cliproxyapi)
+        .then(|| state.lock_for(ComponentId::CpaManagerPlus));
+    let _dependent_guard = if let Some(lock) = dependent_lock.as_ref() {
+        Some(lock.lock().await)
+    } else {
+        None
+    };
+    if state.with_component(component_id, |runtime| runtime.busy) {
+        return Err(message("组件正在执行任务，请稍后再修改端口"));
+    }
+    if component_id == ComponentId::Cliproxyapi
+        && state.with_component(ComponentId::CpaManagerPlus, |runtime| runtime.busy)
+    {
+        return Err(message(
+            "CPA-Manager-Plus 正在执行任务，请稍后再修改 CLIProxyAPI 端口",
+        ));
+    }
+    let old_port = state.component_port(component_id);
+    if old_port == port {
+        return Ok(state.snapshot());
+    }
+    let was_running = state.with_component(component_id, |runtime| runtime.pid.is_some());
+    let manager_was_running = component_id == ComponentId::Cliproxyapi
+        && state.with_component(ComponentId::CpaManagerPlus, |runtime| runtime.pid.is_some());
+    if manager_was_running {
+        process::stop(&state, ComponentId::CpaManagerPlus).await?;
+    }
+    if was_running {
+        process::stop(&state, component_id).await?;
+    }
+    state.set_component_port(component_id, port)?;
+    state.log(
+        LogSource::from(component_id),
+        LogLevel::Info,
+        format!("监听端口已从 {old_port} 修改为 {port}"),
+    );
+    if was_running {
+        if let Err(error) = process::start(&app, &state, component_id).await {
+            let error_message = format!("端口设置已保存，但组件重启失败：{error}");
+            set_error(&state, component_id, &error_message);
+            state.emit_snapshot(&app);
+            return Err(message(error_message));
+        }
+    }
+    if manager_was_running {
+        if let Err(error) = process::start(&app, &state, ComponentId::CpaManagerPlus).await {
+            let error_message =
+                format!("CLIProxyAPI 端口设置已生效，但 CPA-Manager-Plus 联动重启失败：{error}");
+            set_error(&state, ComponentId::CpaManagerPlus, &error_message);
+            state.emit_snapshot(&app);
+            return Err(message(error_message));
+        }
+    }
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
 pub fn save_webdav_settings(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -371,7 +469,7 @@ pub async fn download_webdav_config(
         .any(|id| state.with_component(id, |runtime| runtime.pid.is_some() || runtime.busy))
     {
         return Err(message(
-            "下载配置前请先停止 CPA Core 和 CPA-Manager-Plus，并等待安装或更新任务完成",
+            "下载配置前请先停止所有组件，并等待安装或更新任务完成",
         ));
     }
     match webdav::download(&state).await {
@@ -419,7 +517,8 @@ pub fn open_management_page(
     }
     let url = format!(
         "http://127.0.0.1:{}{}",
-        definition.port, definition.management_path
+        state.component_port(component_id),
+        definition.management_path
     );
     open::that(url).map_err(|error| message(format!("无法打开管理页面：{error}")))?;
     Ok(state.snapshot())
@@ -501,7 +600,7 @@ async fn stop_one(app: &AppHandle, state: &AppState, id: ComponentId) -> AppResu
 
 pub(crate) async fn start_installed_components(app: &AppHandle, state: &AppState) {
     for id in ComponentId::ALL {
-        if component_is_installed(state, id) {
+        if component_is_installed(state, id) && state.component_auto_start(id) {
             let _ = start_one(app, state, id).await;
         }
     }
@@ -514,7 +613,7 @@ fn should_rollback_after_start_error(error: &str) -> bool {
 }
 
 pub(crate) async fn stop_managed_components(state: &AppState) {
-    for id in [ComponentId::CpaManagerPlus, ComponentId::Cliproxyapi] {
+    for id in ComponentId::ALL.into_iter().rev() {
         let running = state.with_component(id, |runtime| runtime.pid.is_some());
         if running {
             let _ = process::stop(state, id).await;

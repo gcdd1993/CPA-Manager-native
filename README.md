@@ -4,9 +4,9 @@
 
 # CPA Manager Native
 
-**A native desktop manager for CLIProxyAPI and CPA-Manager-Plus**
+**A native desktop manager for CLIProxyAPI, CPA-Manager-Plus, and Octopus**
 
-Install, update, run, monitor, and roll back the two CPA components from one local Tauri desktop app.
+Install, update, run, monitor, and roll back local AI gateway components from one Tauri desktop app.
 
 [![Tauri](https://img.shields.io/badge/Tauri-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
@@ -14,7 +14,7 @@ Install, update, run, monitor, and roll back the two CPA components from one loc
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Release](https://img.shields.io/github/v/release/gcdd1993/CPA-Manager-native?include_prereleases&sort=semver&label=release&color=4c9a40)](https://github.com/gcdd1993/CPA-Manager-native/releases)
 
-<sub>Keywords: CLIProxyAPI manager · CPA-Manager-Plus desktop shell · local binary manager · Tauri desktop app</sub>
+<sub>Keywords: CLIProxyAPI manager · CPA-Manager-Plus · Octopus · local binary manager · Tauri desktop app</sub>
 
 **English** · [简体中文](README.zh-CN.md)
 
@@ -22,13 +22,13 @@ Install, update, run, monitor, and roll back the two CPA components from one loc
 
 ---
 
-CPA Manager Native is a desktop control plane for running [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) as local managed binaries.
+CPA Manager Native is a desktop control plane for running [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/Hureru/octopus) as local managed binaries.
 
 It does not replace CPA-Manager-Plus. It provides a stable native shell around the upstream components: release discovery, checksum verification, installation, startup, health checks, logs, data-directory management, and rollback are handled from one UI.
 
 ## Where it fits
 
-- Users who want a one-click local launcher for CLIProxyAPI and CPA-Manager-Plus.
+- Users who want a one-click local launcher for CLIProxyAPI, CPA-Manager-Plus, or Octopus.
 - Users who prefer a tray-first desktop app instead of manually managing terminal processes.
 - Users who need safer upgrades with checksums, health checks, and rollback.
 - Users who want the upstream CPA-Manager-Plus web UI opened only after the managed services are ready.
@@ -45,15 +45,16 @@ It does not replace CPA-Manager-Plus. It provides a stable native shell around t
 
 #### Managed installation
 
-- Discover latest GitHub Releases for CPA Core and CPA-Manager-Plus.
+- Discover latest GitHub Releases for CPA Core, CPA-Manager-Plus, and Octopus.
 - Match platform-specific release assets for Windows, macOS, and Linux.
-- Verify downloaded assets against upstream `checksums.txt` before activation.
+- Verify downloaded assets against upstream `checksums.txt` or GitHub's SHA-256 asset digest before activation.
 - Keep recent installed versions so a failed startup can roll back to a previous version.
 
 #### Local process control
 
 - Start and stop each installed component from the desktop UI.
-- Start installed components automatically when CPA Manager Native launches.
+- Choose which installed components start automatically when CPA Manager Native launches.
+- Configure each component's local service port; port conflicts are rejected and running components restart automatically after a port change.
 - Stop managed components automatically when the desktop app exits.
 - Check port availability before starting a managed service; when occupied, stop the listening process automatically and start the managed service after the port is released.
 
@@ -69,7 +70,7 @@ It does not replace CPA-Manager-Plus. It provides a stable native shell around t
 - Store app settings in the user's `~/.cpamanager-native` directory.
 - Use a configurable data directory for managed component binaries, manifests, logs, and config.
 - Generate and persist a CLIProxyAPI remote-management secret when the upstream config has an empty key.
-- Manually upload or restore the manager, CPA Core, and CPA-Manager-Plus configuration from the dedicated WebDAV Sync view. The allowlist excludes component binaries, versions, logs, and download caches, and restore creates a local backup first.
+- Manually upload or restore the manager and managed-component configuration from the dedicated WebDAV Sync view. The allowlist excludes component binaries, databases, versions, logs, and download caches, and restore creates a local backup first.
 - Display the recoverable management key in the installed versions view.
 - Preserve existing hashed upstream secrets without exposing or rotating them.
 
@@ -111,9 +112,9 @@ Release assets are unsigned unless signing secrets are configured in the release
 
 1. Install and open CPA Manager Native.
 2. Choose or confirm the data directory used for managed component binaries and config.
-3. Install CPA Core and CPA-Manager-Plus from the dashboard.
-4. Start both components from the app.
-5. Wait for health checks to pass, then open the CPA-Manager-Plus management page.
+3. Install the components you need from the dashboard.
+4. Start them from the app.
+5. Wait for health checks to pass, then open the desired management page.
 
 CPA-Manager-Plus is configured to connect to CLIProxyAPI at `http://127.0.0.1:8317`.
 
@@ -123,6 +124,7 @@ CPA-Manager-Plus is configured to connect to CLIProxyAPI at `http://127.0.0.1:83
 | --- | --- | --- | --- |
 | CLIProxyAPI | CPA Core | Local AI API gateway and protocol adapter | `8317` |
 | CPA-Manager-Plus | CPAMP | Web management, monitoring, and visualization UI | `18317` |
+| Octopus | Octopus | Personal LLM API aggregation and load balancing | `8080` |
 
 ## Platform support
 
@@ -254,7 +256,7 @@ PRD/        Product notes and design references
 
 ## Acknowledgements
 
-CPA Manager Native manages the upstream projects [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus). Those projects are distributed under their own licenses and release processes.
+CPA Manager Native manages the upstream projects [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/Hureru/octopus). Those projects are distributed under their own licenses and release processes.
 
 ## Friends
 
