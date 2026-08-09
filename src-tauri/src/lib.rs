@@ -135,10 +135,23 @@ fn show_main_window(app: &AppHandle) {
 
 fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {
     let desired = state.launch_at_startup();
-    let result = if desired {
-        app.autolaunch().enable()
-    } else {
-        app.autolaunch().disable()
+    let autolaunch = app.autolaunch();
+    let actual = match autolaunch.is_enabled() {
+        Ok(actual) => actual,
+        Err(error) => {
+            state.log(
+                LogSource::App,
+                LogLevel::Warn,
+                format!("读取开机自启状态失败：{error}"),
+            );
+            return;
+        }
+    };
+
+    let result = match (desired, actual) {
+        (true, false) => autolaunch.enable(),
+        (false, true) => autolaunch.disable(),
+        _ => Ok(()),
     };
     if let Err(error) = result {
         state.log(
@@ -149,7 +162,7 @@ fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {
         return;
     }
 
-    let actual = app.autolaunch().is_enabled().unwrap_or(desired);
+    let actual = autolaunch.is_enabled().unwrap_or(desired);
     if let Err(error) = state.set_launch_at_startup(actual) {
         state.log(
             LogSource::App,

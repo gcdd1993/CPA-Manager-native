@@ -312,7 +312,7 @@ export default function App() {
       setSnapshot(next);
       if (!isTauri() || next.platform !== "Windows") return;
 
-      const update = await checkAppUpdate({ timeout: 15_000 });
+      const update = await checkAppUpdate();
       if (!update) {
         window.alert("CPA Manager Native 已是最新版本，组件版本检查也已完成。");
         return;

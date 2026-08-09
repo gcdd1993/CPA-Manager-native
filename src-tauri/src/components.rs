@@ -28,7 +28,7 @@ pub const COMPONENTS: [ComponentDefinition; 2] = [
         executable_stem: "cli-proxy-api",
         port: 8317,
         health_path: "/healthz",
-        management_path: "/",
+        management_path: "/management.html",
     },
     ComponentDefinition {
         id: ComponentId::CpaManagerPlus,
