@@ -29,7 +29,7 @@ const demoSnapshot: AppSnapshot = {
       healthy: false,
       pid: null,
       port: 8317,
-      management_url: "http://127.0.0.1:8317",
+      management_url: "http://127.0.0.1:8317/management.html",
       management_key: "cpa_demo_key_generated_on_first_start",
       update_available: false,
       busy: false,

@@ -29,6 +29,7 @@ pub struct AppState {
     manager_config_dir: Arc<PathBuf>,
     settings: Arc<Mutex<ManagerSettings>>,
     pub client: reqwest::Client,
+    pub download_client: reqwest::Client,
     inner: Arc<Mutex<InnerState>>,
     pub processes: Arc<Mutex<HashMap<ComponentId, Child>>>,
     locks: Arc<HashMap<ComponentId, Arc<AsyncMutex<()>>>>,
@@ -53,11 +54,15 @@ impl AppState {
             .connect_timeout(std::time::Duration::from_secs(15))
             .timeout(std::time::Duration::from_secs(120))
             .build()?;
+        let download_client = reqwest::Client::builder()
+            .user_agent("CPA-Manager-Native/0.1")
+            .build()?;
 
         let state = Self {
             manager_config_dir: Arc::new(manager_config_dir),
             settings: Arc::new(Mutex::new(settings)),
             client,
+            download_client,
             inner: Arc::new(Mutex::new(InnerState {
                 components,
                 logs: VecDeque::new(),

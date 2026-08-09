@@ -147,18 +147,20 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog for 0.0.4
+            ## Changelog for 0.0.5
 
             ### Added
-            - A persistent LAN-access switch for the CLIProxyAPI service and management page.
-            - Single-instance application handling that activates the existing window on repeated launch.
-            - Signed in-app updates for Windows through GitHub Releases.
+            - Managed services now reclaim their required local ports before startup.
 
             ### Changed
-            - Windows updates now install in place without requiring a manual uninstall.
-            - Managed components are stopped only after the application update has downloaded and are restored if installation preparation fails.
+            - Application and component update downloads no longer use a request timeout.
+            - Component startup failures preserve the current version instead of retrying an older version.
+            - CPA Core opens its management console at `/management.html`.
 
-            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.4/CHANGELOG.md
+            ### Fixed
+            - Launch-at-startup synchronization no longer fails when the Windows startup entry is absent.
+
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.5/CHANGELOG.md
 
             Application binaries are not Authenticode-signed; updater artifacts are signed with the Tauri updater key.
           releaseDraft: ${{ github.ref_type != 'tag' }}
