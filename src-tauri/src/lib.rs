@@ -86,7 +86,9 @@ pub fn run() {
                         && last_provider_model_sync
                             .map(|instant: std::time::Instant| {
                                 instant.elapsed()
-                                    >= Duration::from_secs(sync_settings.interval_seconds.max(10))
+                                    >= Duration::from_secs(
+                                        sync_settings.interval_minutes.max(1) * 60,
+                                    )
                             })
                             .unwrap_or(true);
                     if sync_due {

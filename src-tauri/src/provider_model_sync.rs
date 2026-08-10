@@ -54,6 +54,7 @@ pub async fn synchronize(state: &AppState) -> AppResult<bool> {
     let mut root: Value = serde_yaml::from_slice(&original)
         .map_err(|error| message(format!("解析 CLIProxyAPI 配置失败：{error}")))?;
     let mut changed = disable_legacy_plugin(&mut root);
+    let mut alias_logs = Vec::new();
     let providers = mapping_value_mut(root_mapping_mut(&mut root)?, "openai-compatibility")
         .and_then(Value::as_sequence_mut)
         .ok_or_else(|| message("openai-compatibility 必须是 YAML 数组"))?;
@@ -67,7 +68,13 @@ pub async fn synchronize(state: &AppState) -> AppResult<bool> {
         }
         match fetch_models(state, &definition).await {
             Ok(models) => {
-                changed |= merge_models(provider_value, &definition.name, &models, &rules)?;
+                changed |= merge_models(
+                    provider_value,
+                    &definition.name,
+                    &models,
+                    &rules,
+                    &mut alias_logs,
+                )?;
                 success_count += 1;
             }
             Err(error) => errors.push(format!("{}: {error}", definition.name)),
@@ -81,6 +88,13 @@ pub async fn synchronize(state: &AppState) -> AppResult<bool> {
     }
     if changed {
         write_config(&config_path, &original, &root)?;
+    }
+    for log in alias_logs {
+        state.log(
+            crate::models::LogSource::App,
+            crate::models::LogLevel::Info,
+            format!("[模型别名] {log}"),
+        );
     }
     if errors.is_empty() {
         state.log(
@@ -99,8 +113,8 @@ pub async fn synchronize(state: &AppState) -> AppResult<bool> {
 }
 
 pub fn validate_settings(settings: &ProviderModelSyncSettings) -> AppResult<()> {
-    if settings.interval_seconds < 10 {
-        return Err(message("模型同步间隔不能小于 10 秒"));
+    if settings.interval_minutes < 1 {
+        return Err(message("模型同步间隔不能小于 1 分钟"));
     }
     compile_rules(settings).map(|_| ())
 }
@@ -240,6 +254,7 @@ fn merge_models(
     provider_name: &str,
     upstream_models: &[String],
     rules: &[CompiledAliasRule],
+    alias_logs: &mut Vec<String>,
 ) -> AppResult<bool> {
     let provider = provider_value
         .as_mapping_mut()
@@ -282,6 +297,7 @@ fn merge_models(
         let (alias, force_mapping) =
             generate_alias(provider_name, model_name, &existing_alias, rules);
         if existing_alias != alias {
+            alias_logs.push(format!("{provider_name} | {model_name} -> {alias}"));
             set_value(mapping, "alias", Value::String(alias));
             changed = true;
         }

@@ -64,7 +64,7 @@ export interface ProviderModelAliasRule {
 
 export interface ProviderModelSyncSettings {
   enabled: boolean;
-  interval_seconds: number;
+  interval_minutes: number;
   alias_rules: ProviderModelAliasRule[];
 }
 

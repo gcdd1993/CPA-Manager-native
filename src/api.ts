@@ -15,7 +15,7 @@ const demoSnapshot: AppSnapshot = {
     remote_path: "CPA-Manager-Native/config-backup.zip",
     last_sync_at: null, last_error: null,
   },
-  provider_model_sync: { enabled: true, interval_seconds: 300, alias_rules: [] },
+  provider_model_sync: { enabled: true, interval_minutes: 1440, alias_rules: [] },
   provider_model_sync_last_success: null,
   provider_model_sync_last_error: null,
   last_update_check: null,
