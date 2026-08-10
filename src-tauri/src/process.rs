@@ -202,6 +202,9 @@ fn prepare_component_data(state: &AppState, id: ComponentId) -> AppResult<()> {
     match id {
         ComponentId::Cliproxyapi => {
             let result = ensure_cliproxy_secret(&data_dir)?;
+            crate::provider_model_sync::disable_legacy_plugin_in_file(
+                &data_dir.join("config.yaml"),
+            )?;
             state.update_component(id, |runtime| {
                 runtime.management_key = result.key.clone();
             });

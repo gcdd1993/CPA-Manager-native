@@ -6,6 +6,7 @@ mod github;
 mod installer;
 mod models;
 mod process;
+mod provider_model_sync;
 mod state;
 mod webdav;
 
@@ -76,9 +77,41 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let state = app_handle.state::<AppState>().inner().clone();
                 commands::start_installed_components(&app_handle, &state).await;
+                let mut last_provider_model_sync = None;
                 loop {
                     tokio::time::sleep(Duration::from_secs(5)).await;
                     let state = app_handle.state::<AppState>().inner().clone();
+                    let sync_settings = state.settings().provider_model_sync;
+                    let sync_due = sync_settings.enabled
+                        && last_provider_model_sync
+                            .map(|instant: std::time::Instant| {
+                                instant.elapsed()
+                                    >= Duration::from_secs(sync_settings.interval_seconds.max(10))
+                            })
+                            .unwrap_or(true);
+                    if sync_due {
+                        last_provider_model_sync = Some(std::time::Instant::now());
+                        match provider_model_sync::synchronize(&state).await {
+                            Ok(changed) => {
+                                state.record_provider_model_sync_success();
+                                if changed {
+                                    if let Err(error) =
+                                        commands::restart_cliproxyapi(&app_handle, &state).await
+                                    {
+                                        state.record_provider_model_sync_error(error.to_string());
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                state.record_provider_model_sync_error(error.to_string());
+                                state.log(
+                                    LogSource::App,
+                                    LogLevel::Warn,
+                                    format!("Provider 模型同步失败：{error}"),
+                                );
+                            }
+                        }
+                    }
                     for id in ComponentId::ALL {
                         let _ = process::refresh_health(&state, id).await;
                     }
@@ -93,6 +126,8 @@ pub fn run() {
             commands::install_component,
             commands::start_component,
             commands::stop_component,
+            commands::sync_provider_models_now,
+            commands::save_provider_model_sync_settings,
             commands::start_all,
             commands::stop_all,
             commands::select_data_directory,
