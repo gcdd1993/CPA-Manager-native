@@ -113,7 +113,7 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .stop-all { margin: auto 24px; background: transparent; border-color: var(--danger); color: var(--danger); }
 .stop-all:hover { background: var(--error-bg); }
 
-.component-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+.component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
 .component-card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); transition: background-color 180ms ease, border-color 180ms ease; }
 .component-head { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: start; gap: 14px; }
 .component-icon { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--info) 50%, var(--line)); background: color-mix(in srgb, var(--info) 12%, var(--surface)); color: var(--info); }
