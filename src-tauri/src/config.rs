@@ -23,6 +23,50 @@ pub struct ManagerSettings {
     pub launch_at_startup: bool,
     #[serde(default)]
     pub webdav: WebDavSettings,
+    #[serde(default)]
+    pub provider_model_sync: ProviderModelSyncSettings,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProviderModelAliasRule {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub provider_pattern: String,
+    #[serde(default)]
+    pub model_pattern: String,
+    #[serde(default)]
+    pub alias_replacement: String,
+    #[serde(default)]
+    pub force_mapping: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProviderModelSyncSettings {
+    #[serde(default = "default_provider_model_sync_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_provider_model_sync_interval_seconds")]
+    pub interval_seconds: u64,
+    #[serde(default)]
+    pub alias_rules: Vec<ProviderModelAliasRule>,
+}
+
+fn default_provider_model_sync_enabled() -> bool {
+    true
+}
+
+fn default_provider_model_sync_interval_seconds() -> u64 {
+    300
+}
+
+impl Default for ProviderModelSyncSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_seconds: default_provider_model_sync_interval_seconds(),
+            alias_rules: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -64,6 +108,7 @@ impl ManagerSettings {
             data_directory,
             launch_at_startup: false,
             webdav: WebDavSettings::default(),
+            provider_model_sync: ProviderModelSyncSettings::default(),
         }
     }
 }

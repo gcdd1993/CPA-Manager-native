@@ -21,6 +21,7 @@ import {
   Monitor,
   Moon,
   Play,
+  Plus,
   Power,
   RefreshCw,
   RotateCcw,
@@ -29,6 +30,7 @@ import {
   Settings,
   SquareTerminal,
   Sun,
+  Trash2,
 } from "lucide-react";
 import {
   changeDataDirectory,
@@ -39,6 +41,8 @@ import {
   setLanAccess,
   setLaunchAtStartup,
   saveWebDavSettings,
+  saveProviderModelSyncSettings,
+  syncProviderModelsNow,
   syncWebDav,
   testWebDavConnection,
 } from "./api";
@@ -47,11 +51,13 @@ import type {
   ComponentId,
   ComponentSnapshot,
   LifecycleState,
+  ProviderModelSyncSettings,
   WebDavSettings,
 } from "./types";
 
 type ThemePreference = "system" | "light" | "dark";
 type ResolvedTheme = Exclude<ThemePreference, "system">;
+type ActiveView = "overview" | "provider_sync" | "logs" | "versions" | "webdav" | "settings";
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -79,7 +85,8 @@ function formatTime(value: string | null) {
 }
 
 function ComponentIcon({ id }: { id: ComponentId }) {
-  return id === "cliproxyapi" ? <ServerCog /> : <Boxes />;
+  if (id === "cliproxyapi") return <ServerCog />;
+  return <Boxes />;
 }
 
 function StatusPill({ component }: { component: ComponentSnapshot }) {
@@ -233,13 +240,14 @@ export default function App() {
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
   const resolvedTheme = theme === "system" ? systemTheme : theme;
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
-  const [activeView, setActiveView] = useState<"overview" | "logs" | "versions" | "webdav" | "settings">("overview");
+  const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [activeLog, setActiveLog] = useState<"all" | ComponentId>("all");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [selectedDataDirectory, setSelectedDataDirectory] = useState<string | null>(null);
   const [webdavDraft, setWebdavDraft] = useState<WebDavSettings | null>(null);
+  const [providerSyncDraft, setProviderSyncDraft] = useState<ProviderModelSyncSettings | null>(null);
   const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState<string | null>(null);
 
@@ -284,6 +292,10 @@ export default function App() {
   useEffect(() => {
     if (snapshot && !webdavDraft) setWebdavDraft(snapshot.webdav);
   }, [snapshot, webdavDraft]);
+
+  useEffect(() => {
+    if (snapshot && !providerSyncDraft) setProviderSyncDraft(snapshot.provider_model_sync);
+  }, [snapshot, providerSyncDraft]);
 
   const run = useCallback(
     async (command: string, componentId?: ComponentId) => {
@@ -426,6 +438,41 @@ export default function App() {
     }
   }, [loadSnapshot]);
 
+  const saveProviderSync = useCallback(async (): Promise<void> => {
+    if (!providerSyncDraft) return;
+    if (!Number.isInteger(providerSyncDraft.interval_seconds) || providerSyncDraft.interval_seconds < 10) {
+      setError("模型同步间隔不能小于 10 秒");
+      return;
+    }
+    setPending("save_provider_model_sync_settings");
+    setError(null);
+    try {
+      const next = await saveProviderModelSyncSettings(providerSyncDraft);
+      setSnapshot(next);
+      setProviderSyncDraft(next.provider_model_sync);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot, providerSyncDraft]);
+
+  const runProviderSync = useCallback(async (): Promise<void> => {
+    setPending("sync_provider_models_now");
+    setError(null);
+    try {
+      const next = await syncProviderModelsNow();
+      setSnapshot(next);
+      setProviderSyncDraft(next.provider_model_sync);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
+
   const runWebDav = useCallback(async (action: "save" | "test" | "upload" | "download") => {
     if (!webdavDraft) return;
     if (action === "download" && !window.confirm("将用 WebDAV 中的配置覆盖本机配置。程序文件不会受影响，原配置会先备份。是否继续？")) return;
@@ -521,6 +568,13 @@ export default function App() {
             onClick={() => setActiveView("versions")}
           ><Boxes /></button>
           <button
+            className={`nav-button ${activeView === "provider_sync" ? "active" : ""}`}
+            title="Provider 模型同步"
+            aria-label="Provider 模型同步"
+            aria-current={activeView === "provider_sync" ? "page" : undefined}
+            onClick={() => setActiveView("provider_sync")}
+          ><GitFork /></button>
+          <button
             className={`nav-button ${activeView === "webdav" ? "active" : ""}`}
             title="WebDAV 同步"
             aria-label="WebDAV 同步"
@@ -588,15 +642,15 @@ export default function App() {
         <section className="overview-band" aria-label="整体状态">
           <div className="overview-copy">
             <span className="section-kicker">SYSTEM STATUS</span>
-            <h2>{runningCount === 2 ? "所有本地服务运行正常" : "本地服务等待操作"}</h2>
+            <h2>{runningCount === snapshot.components.length ? "所有本地服务运行正常" : "本地服务等待操作"}</h2>
             <p>
-              {installedCount}/2 已安装 · {runningCount}/2 健康运行 · {snapshot.platform} {snapshot.architecture}
+              {installedCount}/{snapshot.components.length} 已安装 · {runningCount}/{snapshot.components.length} 健康运行 · {snapshot.platform} {snapshot.architecture}
             </p>
           </div>
           <div className="overview-stat">
             <CheckCircle2 />
             <span>健康组件</span>
-            <strong>{runningCount}<small>/2</small></strong>
+            <strong>{runningCount}<small>/{snapshot.components.length}</small></strong>
           </div>
           <div className="overview-stat">
             <RefreshCw />
@@ -695,7 +749,7 @@ export default function App() {
                   <div className="setting-icon"><CloudUpload /></div>
                   <div>
                     <h3>同步设置</h3>
-                    <p>仅同步本程序 settings.json、CPA config.yaml 和 CPA-Manager-Plus config.json，不包含程序文件。</p>
+                    <p>仅同步本程序及各托管组件的配置文件，不包含程序文件或数据库。</p>
                   </div>
                 </div>
                 <div className="webdav-form">
@@ -706,7 +760,7 @@ export default function App() {
                 </div>
                 <div className="webdav-meta">
                   <ShieldCheck />
-                  <span>下载前需停止两个组件；覆盖前会备份到固定配置目录的 webdav-backups 文件夹。</span>
+                  <span>下载前需停止所有组件；覆盖前会备份到固定配置目录的 webdav-backups 文件夹。</span>
                   <span>上次同步：{formatTime(snapshot.webdav.last_sync_at)}</span>
                 </div>
                 {snapshot.webdav.last_error && <div className="inline-error webdav-error"><CircleAlert /><span>{snapshot.webdav.last_error}</span></div>}
@@ -718,6 +772,139 @@ export default function App() {
                   <button className="secondary-button danger-outline" disabled={Boolean(pending)} onClick={() => runWebDav("download")}>{pending === "webdav_download" ? <LoaderCircle className="spin" /> : <CloudDownload />}下载并覆盖</button>
                 </div>
               </section>
+          </section>
+        )}
+
+        {activeView === "provider_sync" && providerSyncDraft && (
+          <section className="view-section provider-sync-view" aria-labelledby="provider-sync-title">
+            <div className="view-heading">
+              <span className="section-kicker">MODEL ROUTING</span>
+              <h2 id="provider-sync-title">Provider 模型与别名同步</h2>
+              <p>独立管理 OpenAI Compatibility Provider 的模型列表、别名规则和自动同步周期。</p>
+            </div>
+                  <div className="provider-sync-settings">
+                    <div className="provider-sync-heading">
+                      <div>
+                        <strong>Provider 模型与别名同步</strong>
+                        <span>
+                          Native 后台直接读取 CLIProxyAPI 配置；配置变化后自动重启 CLIProxyAPI。
+                          最近成功：{formatTime(snapshot.provider_model_sync_last_success)}
+                        </span>
+                      </div>
+                      <div className="provider-sync-actions">
+                        <button
+                          className={`switch-control ${providerSyncDraft.enabled ? "on" : ""}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={providerSyncDraft.enabled}
+                          disabled={Boolean(pending)}
+                          onClick={() => setProviderSyncDraft((current) => current ? ({ ...current, enabled: !current.enabled }) : current)}
+                        >
+                          <span className="switch-track" aria-hidden="true"><span /></span>
+                          {providerSyncDraft.enabled ? "已启用" : "已关闭"}
+                        </button>
+                        <label className="port-control">
+                          <span>间隔（秒）</span>
+                          <input
+                            type="number"
+                            min={10}
+                            value={providerSyncDraft.interval_seconds}
+                            disabled={Boolean(pending)}
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({ ...current, interval_seconds: Number(event.target.value) }) : current)}
+                          />
+                        </label>
+                        <button className="secondary-button" type="button" disabled={Boolean(pending)} onClick={runProviderSync}>
+                          {pending === "sync_provider_models_now" ? <LoaderCircle className="spin" /> : <RefreshCw />}
+                          立即同步
+                        </button>
+                        <button className="primary-button" type="button" disabled={Boolean(pending)} onClick={saveProviderSync}>
+                          {pending === "save_provider_model_sync_settings" ? <LoaderCircle className="spin" /> : <Check />}
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                    {snapshot.provider_model_sync_last_error && (
+                      <div className="provider-sync-error">{snapshot.provider_model_sync_last_error}</div>
+                    )}
+                    <div className="provider-sync-note">
+                      内置规则：转小写、空格转为 <code>-</code>、去掉 <code>/</code> 前缀、去掉末尾日期。自定义规则按顺序优先匹配。
+                    </div>
+                    <div className="alias-rule-list">
+                      {providerSyncDraft.alias_rules.map((rule, index) => (
+                        <div className="alias-rule-row" key={`alias-rule-${index}`}>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled}
+                            aria-label={`启用规则 ${index + 1}`}
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, enabled: event.target.checked }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.provider_pattern}
+                            placeholder="Provider 正则（空=全部）"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, provider_pattern: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.model_pattern}
+                            placeholder="模型正则"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, model_pattern: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.alias_replacement}
+                            placeholder="Alias 替换值"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, alias_replacement: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <label className="force-mapping-control">
+                            <input
+                              type="checkbox"
+                              checked={rule.force_mapping}
+                              onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                                ...current,
+                                alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, force_mapping: event.target.checked }) : item),
+                              }) : current)}
+                            />
+                            强制映射
+                          </label>
+                          <button
+                            className="icon-button danger-outline"
+                            type="button"
+                            aria-label={`删除规则 ${index + 1}`}
+                            onClick={() => setProviderSyncDraft((current) => current ? ({ ...current, alias_rules: current.alias_rules.filter((_, itemIndex) => itemIndex !== index) }) : current)}
+                          >
+                            <Trash2 />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      className="secondary-button add-alias-rule"
+                      type="button"
+                      onClick={() => setProviderSyncDraft((current) => current ? ({
+                        ...current,
+                        alias_rules: [...current.alias_rules, {
+                          enabled: true,
+                          provider_pattern: "",
+                          model_pattern: "",
+                          alias_replacement: "",
+                          force_mapping: false,
+                        }],
+                      }) : current)}
+                    >
+                      <Plus />
+                      添加别名规则
+                    </button>
+                  </div>
           </section>
         )}
 
@@ -816,18 +1003,6 @@ export default function App() {
                 <div><strong>固定配置目录</strong><span>Manager 设置文件</span></div>
                 <code>{snapshot.manager_config_directory}</code>
               </div>
-              {snapshot.components.map((component) => {
-                const lanEnabled = component.id === "cliproxyapi" && snapshot.lan_access_enabled;
-                return (
-                  <div className="setting-row" key={component.id}>
-                    <div>
-                      <strong>{component.name}</strong>
-                      <span>{lanEnabled ? "监听所有网络接口" : "仅监听本机地址"}</span>
-                    </div>
-                    <code>{lanEnabled ? "0.0.0.0" : "127.0.0.1"}:{component.port}</code>
-                  </div>
-                );
-              })}
             </div>
           </section>
         )}
@@ -846,7 +1021,11 @@ export default function App() {
                   className={activeLog === value ? "active" : ""}
                   onClick={() => setActiveLog(value)}
                 >
-                  {value === "all" ? "全部" : value === "cliproxyapi" ? "Core" : "Manager"}
+                  {value === "all"
+                    ? "全部"
+                    : value === "cliproxyapi"
+                      ? "Core"
+                      : "Manager"}
                 </button>
               ))}
             </div>

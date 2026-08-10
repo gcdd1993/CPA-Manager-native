@@ -39,6 +39,8 @@ struct InnerState {
     components: HashMap<ComponentId, RuntimeState>,
     logs: VecDeque<LogEntry>,
     last_update_check: Option<String>,
+    provider_model_sync_last_success: Option<String>,
+    provider_model_sync_last_error: Option<String>,
 }
 
 impl AppState {
@@ -67,6 +69,8 @@ impl AppState {
                 components,
                 logs: VecDeque::new(),
                 last_update_check: None,
+                provider_model_sync_last_success: None,
+                provider_model_sync_last_error: None,
             })),
             processes: Arc::new(Mutex::new(HashMap::new())),
             locks: Arc::new(locks),
@@ -154,6 +158,9 @@ impl AppState {
                     .join(ComponentId::Cliproxyapi.directory_name()),
             ),
             webdav: settings.webdav.clone(),
+            provider_model_sync: settings.provider_model_sync.clone(),
+            provider_model_sync_last_success: inner.provider_model_sync_last_success.clone(),
+            provider_model_sync_last_error: inner.provider_model_sync_last_error.clone(),
             last_update_check: inner.last_update_check.clone(),
             components,
             logs: inner.logs.iter().cloned().collect(),
@@ -218,6 +225,19 @@ impl AppState {
             .lock()
             .expect("state lock poisoned")
             .last_update_check = Some(Utc::now().to_rfc3339());
+    }
+
+    pub fn record_provider_model_sync_success(&self) {
+        let mut inner = self.inner.lock().expect("state lock poisoned");
+        inner.provider_model_sync_last_success = Some(Utc::now().to_rfc3339());
+        inner.provider_model_sync_last_error = None;
+    }
+
+    pub fn record_provider_model_sync_error(&self, error: String) {
+        self.inner
+            .lock()
+            .expect("state lock poisoned")
+            .provider_model_sync_last_error = Some(error);
     }
 
     pub fn set_launch_at_startup(&self, enabled: bool) -> AppResult<()> {
