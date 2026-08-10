@@ -7,6 +7,20 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-08-10
+
+### Added
+
+- Added native synchronization for models exposed by configured OpenAI-compatible Providers.
+- Added built-in alias normalization for letter case, whitespace, Provider prefixes, and trailing dates, plus visual regular-expression rules.
+- Added a dedicated Provider synchronization view with manual synchronization and alias-processing logs.
+
+### Changed
+
+- Provider synchronization defaults to every 1440 minutes and safely restarts CLIProxyAPI only when its configuration changes.
+- Core component cards now use the full two-column layout.
+- The application data-directory and Releases status bar now remains fixed at the bottom of every view.
+
 ## [0.0.5] - 2026-08-09
 
 ### Added
@@ -85,7 +99,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Skips CPA-Manager-Plus v1.11.0 on Windows because of upstream startup failure seakee/CPA-Manager-Plus#345.
 - Falls back to the previous installed component version when a newly installed component cannot pass startup health checks.
 
-[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/gcdd1993/CPA-Manager-native/compare/v0.0.2...v0.0.3

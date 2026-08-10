@@ -575,7 +575,7 @@ dependencies = [
 
 [[package]]
 name = "cpa-manager-native"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "chrono",
  "flate2",

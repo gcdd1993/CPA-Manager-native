@@ -147,20 +147,19 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog for 0.0.5
+            ## Changelog for 0.0.6
 
             ### Added
-            - Managed services now reclaim their required local ports before startup.
+            - Native synchronization of OpenAI-compatible Provider models and aliases.
+            - Visual regular-expression alias rules with built-in normalization for case, spaces, provider prefixes, and date suffixes.
+            - A dedicated Provider synchronization view with alias-processing logs and a configurable interval in minutes.
 
             ### Changed
-            - Application and component update downloads no longer use a request timeout.
-            - Component startup failures preserve the current version instead of retrying an older version.
-            - CPA Core opens its management console at `/management.html`.
+            - Provider synchronization defaults to once every 24 hours and restarts CLIProxyAPI only when its configuration changes.
+            - Core component cards use a balanced two-column layout.
+            - The application status bar remains fixed at the bottom of every view.
 
-            ### Fixed
-            - Launch-at-startup synchronization no longer fails when the Windows startup entry is absent.
-
-            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.5/CHANGELOG.md
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.6/CHANGELOG.md
 
             Application binaries are not Authenticode-signed; updater artifacts are signed with the Tauri updater key.
           releaseDraft: ${{ github.ref_type != 'tag' }}
