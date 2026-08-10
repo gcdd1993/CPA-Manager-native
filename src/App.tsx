@@ -440,8 +440,8 @@ export default function App() {
 
   const saveProviderSync = useCallback(async (): Promise<void> => {
     if (!providerSyncDraft) return;
-    if (!Number.isInteger(providerSyncDraft.interval_seconds) || providerSyncDraft.interval_seconds < 10) {
-      setError("模型同步间隔不能小于 10 秒");
+    if (!Number.isInteger(providerSyncDraft.interval_minutes) || providerSyncDraft.interval_minutes < 1) {
+      setError("模型同步间隔不能小于 1 分钟");
       return;
     }
     setPending("save_provider_model_sync_settings");
@@ -536,6 +536,10 @@ export default function App() {
   const installedCount = snapshot.components.filter(
     (component) => component.installed_version,
   ).length;
+  const providerSyncLogs = snapshot.logs.filter(
+    (entry) => entry.component_id === "app"
+      && (entry.message.startsWith("[模型别名]") || entry.message.startsWith("Provider 模型同步")),
+  );
 
   return (
     <div className="app-shell">
@@ -804,13 +808,13 @@ export default function App() {
                           {providerSyncDraft.enabled ? "已启用" : "已关闭"}
                         </button>
                         <label className="port-control">
-                          <span>间隔（秒）</span>
+                          <span>间隔（min）</span>
                           <input
                             type="number"
-                            min={10}
-                            value={providerSyncDraft.interval_seconds}
+                            min={1}
+                            value={providerSyncDraft.interval_minutes}
                             disabled={Boolean(pending)}
-                            onChange={(event) => setProviderSyncDraft((current) => current ? ({ ...current, interval_seconds: Number(event.target.value) }) : current)}
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({ ...current, interval_minutes: Number(event.target.value) }) : current)}
                           />
                         </label>
                         <button className="secondary-button" type="button" disabled={Boolean(pending)} onClick={runProviderSync}>
@@ -905,6 +909,32 @@ export default function App() {
                       添加别名规则
                     </button>
                   </div>
+            <section className="provider-sync-log-section" aria-labelledby="provider-sync-log-title">
+              <div className="section-heading">
+                <div>
+                  <span className="section-kicker">ALIAS PROCESSING</span>
+                  <h2 id="provider-sync-log-title">模型别名处理日志</h2>
+                </div>
+                <span className="provider-sync-log-count">{providerSyncLogs.length} 条</span>
+              </div>
+              <div className="terminal">
+                <div className="terminal-head">
+                  <div className="terminal-lights"><i /><i /><i /></div>
+                  <span>provider-model-sync.log</span>
+                </div>
+                <div className="terminal-body provider-sync-log-body">
+                  {providerSyncLogs.length === 0 ? (
+                    <div className="empty-log">暂无模型别名处理记录</div>
+                  ) : providerSyncLogs.map((entry) => (
+                    <div className={`log-line ${entry.level}`} key={`${entry.timestamp}-${entry.message}`}>
+                      <time>{formatTime(entry.timestamp)}</time>
+                      <span className="log-source">[alias]</span>
+                      <span>{entry.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
           </section>
         )}
 

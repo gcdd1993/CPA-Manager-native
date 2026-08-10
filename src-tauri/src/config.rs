@@ -45,8 +45,8 @@ pub struct ProviderModelAliasRule {
 pub struct ProviderModelSyncSettings {
     #[serde(default = "default_provider_model_sync_enabled")]
     pub enabled: bool,
-    #[serde(default = "default_provider_model_sync_interval_seconds")]
-    pub interval_seconds: u64,
+    #[serde(default = "default_provider_model_sync_interval_minutes")]
+    pub interval_minutes: u64,
     #[serde(default)]
     pub alias_rules: Vec<ProviderModelAliasRule>,
 }
@@ -55,15 +55,15 @@ fn default_provider_model_sync_enabled() -> bool {
     true
 }
 
-fn default_provider_model_sync_interval_seconds() -> u64 {
-    300
+fn default_provider_model_sync_interval_minutes() -> u64 {
+    1440
 }
 
 impl Default for ProviderModelSyncSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            interval_seconds: default_provider_model_sync_interval_seconds(),
+            interval_minutes: default_provider_model_sync_interval_minutes(),
             alias_rules: Vec::new(),
         }
     }
