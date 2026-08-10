@@ -32,6 +32,50 @@ pub struct ManagerSettings {
     pub auto_start_components: HashMap<ComponentId, bool>,
     #[serde(default = "default_component_ports")]
     pub component_ports: HashMap<ComponentId, u16>,
+    #[serde(default)]
+    pub provider_model_sync: ProviderModelSyncSettings,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProviderModelAliasRule {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub provider_pattern: String,
+    #[serde(default)]
+    pub model_pattern: String,
+    #[serde(default)]
+    pub alias_replacement: String,
+    #[serde(default)]
+    pub force_mapping: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProviderModelSyncSettings {
+    #[serde(default = "default_provider_model_sync_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_provider_model_sync_interval_seconds")]
+    pub interval_seconds: u64,
+    #[serde(default)]
+    pub alias_rules: Vec<ProviderModelAliasRule>,
+}
+
+fn default_provider_model_sync_enabled() -> bool {
+    true
+}
+
+fn default_provider_model_sync_interval_seconds() -> u64 {
+    300
+}
+
+impl Default for ProviderModelSyncSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_seconds: default_provider_model_sync_interval_seconds(),
+            alias_rules: Vec::new(),
+        }
+    }
 }
 
 fn default_auto_start_components() -> HashMap<ComponentId, bool> {
@@ -86,6 +130,7 @@ impl ManagerSettings {
             webdav: WebDavSettings::default(),
             auto_start_components: default_auto_start_components(),
             component_ports: default_component_ports(),
+            provider_model_sync: ProviderModelSyncSettings::default(),
         }
     }
 

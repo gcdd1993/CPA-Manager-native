@@ -47,9 +47,26 @@ export interface AppSnapshot {
   launch_at_startup: boolean;
   lan_access_enabled: boolean;
   webdav: WebDavSettings;
+  provider_model_sync: ProviderModelSyncSettings;
+  provider_model_sync_last_success: string | null;
+  provider_model_sync_last_error: string | null;
   last_update_check: string | null;
   components: ComponentSnapshot[];
   logs: LogEntry[];
+}
+
+export interface ProviderModelAliasRule {
+  enabled: boolean;
+  provider_pattern: string;
+  model_pattern: string;
+  alias_replacement: string;
+  force_mapping: boolean;
+}
+
+export interface ProviderModelSyncSettings {
+  enabled: boolean;
+  interval_seconds: number;
+  alias_rules: ProviderModelAliasRule[];
 }
 
 export interface WebDavSettings {

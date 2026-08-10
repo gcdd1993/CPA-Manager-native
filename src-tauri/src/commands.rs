@@ -20,6 +20,8 @@ use crate::{
     webdav,
 };
 
+use crate::config::ProviderModelSyncSettings;
+
 #[tauri::command]
 pub fn get_app_snapshot(state: State<'_, AppState>) -> AppSnapshot {
     state.snapshot()
@@ -86,6 +88,48 @@ pub async fn stop_component(
 ) -> AppResult<AppSnapshot> {
     let state = state.inner().clone();
     stop_one(&app, &state, component_id).await?;
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub async fn sync_provider_models_now(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<AppSnapshot> {
+    let state = state.inner().clone();
+    match crate::provider_model_sync::synchronize(&state).await {
+        Ok(changed) => {
+            state.record_provider_model_sync_success();
+            if changed {
+                restart_cliproxyapi(&app, &state).await?;
+            }
+            state.emit_snapshot(&app);
+            Ok(state.snapshot())
+        }
+        Err(error) => {
+            state.record_provider_model_sync_error(error.to_string());
+            state.emit_snapshot(&app);
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn save_provider_model_sync_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: ProviderModelSyncSettings,
+) -> AppResult<AppSnapshot> {
+    crate::provider_model_sync::validate_settings(&settings)?;
+    let mut manager_settings = state.settings();
+    manager_settings.provider_model_sync = settings;
+    state.replace_settings(manager_settings)?;
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        "Provider 模型同步设置已保存",
+    );
+    state.emit_snapshot(&app);
     Ok(state.snapshot())
 }
 
@@ -604,6 +648,20 @@ pub(crate) async fn start_installed_components(app: &AppHandle, state: &AppState
             let _ = start_one(app, state, id).await;
         }
     }
+}
+
+pub(crate) async fn restart_cliproxyapi(app: &AppHandle, state: &AppState) -> AppResult<()> {
+    let id = ComponentId::Cliproxyapi;
+    let lock = state.lock_for(id);
+    let _guard = lock.lock().await;
+    let was_running = state.with_component(id, |runtime| runtime.pid.is_some());
+    if !was_running {
+        return Ok(());
+    }
+    process::stop(state, id).await?;
+    process::start(app, state, id).await?;
+    state.emit_snapshot(app);
+    Ok(())
 }
 
 fn should_rollback_after_start_error(error: &str) -> bool {

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSnapshot, ComponentId, WebDavSettings } from "./types";
+import type { AppSnapshot, ComponentId, ProviderModelSyncSettings, WebDavSettings } from "./types";
 
 export const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
@@ -15,6 +15,9 @@ const demoSnapshot: AppSnapshot = {
     remote_path: "CPA-Manager-Native/config-backup.zip",
     last_sync_at: null, last_error: null,
   },
+  provider_model_sync: { enabled: true, interval_seconds: 300, alias_rules: [] },
+  provider_model_sync_last_success: null,
+  provider_model_sync_last_error: null,
   last_update_check: null,
   components: [
     {
@@ -184,4 +187,22 @@ export async function testWebDavConnection(settings: WebDavSettings): Promise<vo
 export async function syncWebDav(direction: "upload" | "download"): Promise<AppSnapshot> {
   if (!isTauri()) { await new Promise((resolve) => setTimeout(resolve, 500)); return demoSnapshot; }
   return invoke<AppSnapshot>(direction === "upload" ? "upload_webdav_config" : "download_webdav_config");
+}
+
+export async function saveProviderModelSyncSettings(
+  settings: ProviderModelSyncSettings,
+): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    demoSnapshot.provider_model_sync = settings;
+    return demoSnapshot;
+  }
+  return invoke<AppSnapshot>("save_provider_model_sync_settings", { settings });
+}
+
+export async function syncProviderModelsNow(): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    demoSnapshot.provider_model_sync_last_success = new Date().toISOString();
+    return demoSnapshot;
+  }
+  return invoke<AppSnapshot>("sync_provider_models_now");
 }

@@ -22,6 +22,7 @@ import {
   Moon,
   Network,
   Play,
+  Plus,
   Power,
   RefreshCw,
   RotateCcw,
@@ -30,6 +31,7 @@ import {
   Settings,
   SquareTerminal,
   Sun,
+  Trash2,
 } from "lucide-react";
 import {
   changeDataDirectory,
@@ -42,6 +44,8 @@ import {
   setComponentPort,
   setLaunchAtStartup,
   saveWebDavSettings,
+  saveProviderModelSyncSettings,
+  syncProviderModelsNow,
   syncWebDav,
   testWebDavConnection,
 } from "./api";
@@ -50,11 +54,13 @@ import type {
   ComponentId,
   ComponentSnapshot,
   LifecycleState,
+  ProviderModelSyncSettings,
   WebDavSettings,
 } from "./types";
 
 type ThemePreference = "system" | "light" | "dark";
 type ResolvedTheme = Exclude<ThemePreference, "system">;
+type ActiveView = "overview" | "provider_sync" | "octopus" | "logs" | "versions" | "webdav" | "settings";
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -238,13 +244,14 @@ export default function App() {
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
   const resolvedTheme = theme === "system" ? systemTheme : theme;
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
-  const [activeView, setActiveView] = useState<"overview" | "logs" | "versions" | "webdav" | "settings">("overview");
+  const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [activeLog, setActiveLog] = useState<"all" | ComponentId>("all");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [selectedDataDirectory, setSelectedDataDirectory] = useState<string | null>(null);
   const [webdavDraft, setWebdavDraft] = useState<WebDavSettings | null>(null);
+  const [providerSyncDraft, setProviderSyncDraft] = useState<ProviderModelSyncSettings | null>(null);
   const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState<string | null>(null);
   const [portDrafts, setPortDrafts] = useState<Partial<Record<ComponentId, string>>>({});
@@ -290,6 +297,10 @@ export default function App() {
   useEffect(() => {
     if (snapshot && !webdavDraft) setWebdavDraft(snapshot.webdav);
   }, [snapshot, webdavDraft]);
+
+  useEffect(() => {
+    if (snapshot && !providerSyncDraft) setProviderSyncDraft(snapshot.provider_model_sync);
+  }, [snapshot, providerSyncDraft]);
 
   useEffect(() => {
     if (!snapshot) return;
@@ -476,6 +487,41 @@ export default function App() {
     }
   }, [loadSnapshot, portDrafts]);
 
+  const saveProviderSync = useCallback(async (): Promise<void> => {
+    if (!providerSyncDraft) return;
+    if (!Number.isInteger(providerSyncDraft.interval_seconds) || providerSyncDraft.interval_seconds < 10) {
+      setError("模型同步间隔不能小于 10 秒");
+      return;
+    }
+    setPending("save_provider_model_sync_settings");
+    setError(null);
+    try {
+      const next = await saveProviderModelSyncSettings(providerSyncDraft);
+      setSnapshot(next);
+      setProviderSyncDraft(next.provider_model_sync);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot, providerSyncDraft]);
+
+  const runProviderSync = useCallback(async (): Promise<void> => {
+    setPending("sync_provider_models_now");
+    setError(null);
+    try {
+      const next = await syncProviderModelsNow();
+      setSnapshot(next);
+      setProviderSyncDraft(next.provider_model_sync);
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [loadSnapshot]);
+
   const runWebDav = useCallback(async (action: "save" | "test" | "upload" | "download") => {
     if (!webdavDraft) return;
     if (action === "download" && !window.confirm("将用 WebDAV 中的配置覆盖本机配置。程序文件不会受影响，原配置会先备份。是否继续？")) return;
@@ -510,7 +556,7 @@ export default function App() {
   const filteredLogs = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.logs.filter(
-      (entry) => activeLog === "all" || entry.component_id === activeLog,
+      (entry) => entry.component_id !== "octopus" && (activeLog === "all" || entry.component_id === activeLog),
     );
   }, [activeLog, snapshot]);
 
@@ -533,10 +579,12 @@ export default function App() {
     );
   }
 
-  const runningCount = snapshot.components.filter(
+  const coreComponents = snapshot.components.filter((component) => component.id !== "octopus");
+  const octopusComponent = snapshot.components.find((component) => component.id === "octopus");
+  const runningCount = coreComponents.filter(
     (component) => component.lifecycle === "running" && component.healthy,
   ).length;
-  const installedCount = snapshot.components.filter(
+  const installedCount = coreComponents.filter(
     (component) => component.installed_version,
   ).length;
 
@@ -570,6 +618,20 @@ export default function App() {
             aria-current={activeView === "versions" ? "page" : undefined}
             onClick={() => setActiveView("versions")}
           ><Boxes /></button>
+          <button
+            className={`nav-button ${activeView === "provider_sync" ? "active" : ""}`}
+            title="Provider 模型同步"
+            aria-label="Provider 模型同步"
+            aria-current={activeView === "provider_sync" ? "page" : undefined}
+            onClick={() => setActiveView("provider_sync")}
+          ><GitFork /></button>
+          <button
+            className={`nav-button ${activeView === "octopus" ? "active" : ""}`}
+            title="Octopus 管理"
+            aria-label="Octopus 管理"
+            aria-current={activeView === "octopus" ? "page" : undefined}
+            onClick={() => setActiveView("octopus")}
+          ><Network /></button>
           <button
             className={`nav-button ${activeView === "webdav" ? "active" : ""}`}
             title="WebDAV 同步"
@@ -638,15 +700,15 @@ export default function App() {
         <section className="overview-band" aria-label="整体状态">
           <div className="overview-copy">
             <span className="section-kicker">SYSTEM STATUS</span>
-            <h2>{runningCount === 2 ? "所有本地服务运行正常" : "本地服务等待操作"}</h2>
+            <h2>{runningCount === coreComponents.length ? "核心服务运行正常" : "核心服务等待操作"}</h2>
             <p>
-              {installedCount}/2 已安装 · {runningCount}/2 健康运行 · {snapshot.platform} {snapshot.architecture}
+              {installedCount}/{coreComponents.length} 已安装 · {runningCount}/{coreComponents.length} 健康运行 · {snapshot.platform} {snapshot.architecture}
             </p>
           </div>
           <div className="overview-stat">
             <CheckCircle2 />
             <span>健康组件</span>
-            <strong>{runningCount}<small>/2</small></strong>
+            <strong>{runningCount}<small>/{coreComponents.length}</small></strong>
           </div>
           <div className="overview-stat">
             <RefreshCw />
@@ -664,7 +726,7 @@ export default function App() {
         </section>
 
         <section className="component-grid" aria-label="组件管理">
-          {snapshot.components.map((component) => (
+          {coreComponents.map((component) => (
             <ComponentCard key={component.id} component={component} onAction={run} />
           ))}
         </section>
@@ -678,7 +740,7 @@ export default function App() {
               <p>每个组件独立安装和更新，当前版本切换不会覆盖用户数据目录。</p>
             </div>
             <div className="version-list">
-              {snapshot.components.map((component) => (
+              {coreComponents.map((component) => (
                 <article className="version-row" key={component.id}>
                   <div className={`component-icon ${component.id}`}><ComponentIcon id={component.id} /></div>
                   <div className="version-name">
@@ -770,6 +832,208 @@ export default function App() {
               </section>
           </section>
         )}
+
+        {activeView === "provider_sync" && providerSyncDraft && (
+          <section className="view-section provider-sync-view" aria-labelledby="provider-sync-title">
+            <div className="view-heading">
+              <span className="section-kicker">MODEL ROUTING</span>
+              <h2 id="provider-sync-title">Provider 模型与别名同步</h2>
+              <p>独立管理 OpenAI Compatibility Provider 的模型列表、别名规则和自动同步周期。</p>
+            </div>
+                  <div className="provider-sync-settings">
+                    <div className="provider-sync-heading">
+                      <div>
+                        <strong>Provider 模型与别名同步</strong>
+                        <span>
+                          Native 后台直接读取 CLIProxyAPI 配置；配置变化后自动重启 CLIProxyAPI。
+                          最近成功：{formatTime(snapshot.provider_model_sync_last_success)}
+                        </span>
+                      </div>
+                      <div className="provider-sync-actions">
+                        <button
+                          className={`switch-control ${providerSyncDraft.enabled ? "on" : ""}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={providerSyncDraft.enabled}
+                          disabled={Boolean(pending)}
+                          onClick={() => setProviderSyncDraft((current) => current ? ({ ...current, enabled: !current.enabled }) : current)}
+                        >
+                          <span className="switch-track" aria-hidden="true"><span /></span>
+                          {providerSyncDraft.enabled ? "已启用" : "已关闭"}
+                        </button>
+                        <label className="port-control">
+                          <span>间隔（秒）</span>
+                          <input
+                            type="number"
+                            min={10}
+                            value={providerSyncDraft.interval_seconds}
+                            disabled={Boolean(pending)}
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({ ...current, interval_seconds: Number(event.target.value) }) : current)}
+                          />
+                        </label>
+                        <button className="secondary-button" type="button" disabled={Boolean(pending)} onClick={runProviderSync}>
+                          {pending === "sync_provider_models_now" ? <LoaderCircle className="spin" /> : <RefreshCw />}
+                          立即同步
+                        </button>
+                        <button className="primary-button" type="button" disabled={Boolean(pending)} onClick={saveProviderSync}>
+                          {pending === "save_provider_model_sync_settings" ? <LoaderCircle className="spin" /> : <Check />}
+                          保存
+                        </button>
+                      </div>
+                    </div>
+                    {snapshot.provider_model_sync_last_error && (
+                      <div className="provider-sync-error">{snapshot.provider_model_sync_last_error}</div>
+                    )}
+                    <div className="provider-sync-note">
+                      内置规则：转小写、空格转为 <code>-</code>、去掉 <code>/</code> 前缀、去掉末尾日期。自定义规则按顺序优先匹配。
+                    </div>
+                    <div className="alias-rule-list">
+                      {providerSyncDraft.alias_rules.map((rule, index) => (
+                        <div className="alias-rule-row" key={`alias-rule-${index}`}>
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled}
+                            aria-label={`启用规则 ${index + 1}`}
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, enabled: event.target.checked }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.provider_pattern}
+                            placeholder="Provider 正则（空=全部）"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, provider_pattern: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.model_pattern}
+                            placeholder="模型正则"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, model_pattern: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <input
+                            value={rule.alias_replacement}
+                            placeholder="Alias 替换值"
+                            onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                              ...current,
+                              alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, alias_replacement: event.target.value }) : item),
+                            }) : current)}
+                          />
+                          <label className="force-mapping-control">
+                            <input
+                              type="checkbox"
+                              checked={rule.force_mapping}
+                              onChange={(event) => setProviderSyncDraft((current) => current ? ({
+                                ...current,
+                                alias_rules: current.alias_rules.map((item, itemIndex) => itemIndex === index ? ({ ...item, force_mapping: event.target.checked }) : item),
+                              }) : current)}
+                            />
+                            强制映射
+                          </label>
+                          <button
+                            className="icon-button danger-outline"
+                            type="button"
+                            aria-label={`删除规则 ${index + 1}`}
+                            onClick={() => setProviderSyncDraft((current) => current ? ({ ...current, alias_rules: current.alias_rules.filter((_, itemIndex) => itemIndex !== index) }) : current)}
+                          >
+                            <Trash2 />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      className="secondary-button add-alias-rule"
+                      type="button"
+                      onClick={() => setProviderSyncDraft((current) => current ? ({
+                        ...current,
+                        alias_rules: [...current.alias_rules, {
+                          enabled: true,
+                          provider_pattern: "",
+                          model_pattern: "",
+                          alias_replacement: "",
+                          force_mapping: false,
+                        }],
+                      }) : current)}
+                    >
+                      <Plus />
+                      添加别名规则
+                    </button>
+                  </div>
+          </section>
+        )}
+
+        {activeView === "octopus" && octopusComponent && (
+          <section className="view-section octopus-view" aria-labelledby="octopus-title">
+            <div className="view-heading">
+              <span className="section-kicker">OCTOPUS BRANCH</span>
+              <h2 id="octopus-title">Octopus 管理</h2>
+              <p>Octopus 的安装、运行参数和日志独立管理，不与 CPA Core 的 Provider 同步功能混放。</p>
+            </div>
+            <section className="component-grid octopus-component-grid" aria-label="Octopus 组件管理">
+              <ComponentCard component={octopusComponent} onAction={run} />
+            </section>
+            <div className="settings-grid octopus-settings-grid">
+              <div className="setting-row component-setting-row">
+                <div><strong>Octopus 运行设置</strong><span>独立控制自动启动和监听端口</span></div>
+                <div className="component-setting-actions">
+                  <button
+                    className={`switch-control ${octopusComponent.auto_start ? "on" : ""}`}
+                    type="button"
+                    role="switch"
+                    aria-checked={octopusComponent.auto_start}
+                    disabled={Boolean(pending)}
+                    onClick={() => toggleComponentAutoStart("octopus", !octopusComponent.auto_start)}
+                  >
+                    <span className="switch-track" aria-hidden="true"><span /></span>
+                    {pending === "set_component_auto_start:octopus" ? <LoaderCircle className="spin" /> : <Power />}
+                    自动启动
+                  </button>
+                  <label className="port-control">
+                    <span>端口</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={portDrafts.octopus ?? octopusComponent.port}
+                      disabled={Boolean(pending)}
+                      onChange={(event) => setPortDrafts((current) => ({ ...current, octopus: event.target.value }))}
+                      onKeyDown={(event) => { if (event.key === "Enter") void saveComponentPort("octopus"); }}
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={Boolean(pending) || portDrafts.octopus === String(octopusComponent.port)}
+                    onClick={() => saveComponentPort("octopus")}
+                  >
+                    {pending === "set_component_port:octopus" ? <LoaderCircle className="spin" /> : <Check />}
+                    应用
+                  </button>
+                </div>
+              </div>
+            </div>
+            <section className="log-section standalone octopus-log-section">
+              <div className="section-heading"><div><span className="section-kicker">OCTOPUS OUTPUT</span><h2>Octopus 运行日志</h2></div></div>
+              <div className="terminal">
+                <div className="terminal-head"><div className="terminal-lights"><i /><i /><i /></div><span>octopus</span></div>
+                <div className="terminal-body">
+                  {snapshot.logs.filter((entry) => entry.component_id === "octopus").length === 0 ? (
+                    <div className="empty-log">暂无 Octopus 日志</div>
+                  ) : snapshot.logs.filter((entry) => entry.component_id === "octopus").map((entry) => (
+                    <div className={`log-line ${entry.level}`} key={`${entry.timestamp}-${entry.message}`}>
+                      <time>{formatTime(entry.timestamp)}</time><span className="log-source">[octopus]</span><span>{entry.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </section>
+        )}
+
 
         {activeView === "settings" && (
           <section className="view-section settings-view" aria-labelledby="settings-title">
@@ -866,7 +1130,7 @@ export default function App() {
                 <div><strong>固定配置目录</strong><span>Manager 设置文件</span></div>
                 <code>{snapshot.manager_config_directory}</code>
               </div>
-              {snapshot.components.map((component) => {
+              {coreComponents.map((component) => {
                 const lanEnabled = component.id === "cliproxyapi" && snapshot.lan_access_enabled;
                 const autoStartPending = pending === `set_component_auto_start:${component.id}`;
                 const portPending = pending === `set_component_port:${component.id}`;
@@ -928,7 +1192,7 @@ export default function App() {
               <h2>{activeView === "logs" ? "组件运行日志" : "运行日志"}</h2>
             </div>
             <div className="segmented-control" aria-label="日志筛选">
-              {(["all", "cliproxyapi", "cpa-manager-plus", "octopus"] as const).map((value) => (
+              {(["all", "cliproxyapi", "cpa-manager-plus"] as const).map((value) => (
                 <button
                   key={value}
                   className={activeLog === value ? "active" : ""}
