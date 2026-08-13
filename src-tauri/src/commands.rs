@@ -134,6 +134,33 @@ pub fn save_provider_model_sync_settings(
 }
 
 #[tauri::command]
+pub fn save_github_release_download_proxy(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    github_release_download_proxy: String,
+) -> AppResult<AppSnapshot> {
+    let proxy = github_release_download_proxy
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    if !proxy.is_empty() && !proxy.starts_with("https://") && !proxy.starts_with("http://") {
+        return Err(message(
+            "GitHub Release 下载代理必须以 http:// 或 https:// 开头",
+        ));
+    }
+    let mut settings = state.settings();
+    settings.github_release_download_proxy = proxy;
+    state.replace_settings(settings)?;
+    state.log(
+        LogSource::App,
+        LogLevel::Info,
+        "GitHub Release 下载代理设置已保存",
+    );
+    state.emit_snapshot(&app);
+    Ok(state.snapshot())
+}
+
+#[tauri::command]
 pub async fn start_all(app: AppHandle, state: State<'_, AppState>) -> AppResult<AppSnapshot> {
     let state = state.inner().clone();
     for id in ComponentId::ALL {

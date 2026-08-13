@@ -7,6 +7,25 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-08-13
+
+### Added
+
+- Added Octopus as a managed service alongside CLIProxyAPI and CPA-Manager-Plus, including installation, updates, lifecycle controls, health checks, logs, configurable startup and port settings.
+- Added configurable GitHub Release download acceleration for component archives and checksum files, defaulting to `https://gh.xmly.dev`.
+- Added automatic rollback to the newest retained component version when a newly selected version fails to start.
+
+### Changed
+
+- Updated the Octopus upstream repository to `bestruirui/octopus`.
+- Unified Octopus with the dashboard, version management, settings, and runtime-log views instead of using a separate tab.
+- Refined the responsive two-column component-card layout and added the Octopus application icon.
+
+### Fixed
+
+- Fixed missing Octopus entries and filtering in the unified runtime log.
+- Fixed the missing component rollback implementation that prevented the native backend from compiling.
+
 ## [0.0.6] - 2026-08-10
 
 ### Added

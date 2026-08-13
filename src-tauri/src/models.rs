@@ -85,6 +85,7 @@ pub struct AppSnapshot {
     pub architecture: String,
     pub manager_config_directory: String,
     pub data_directory: String,
+    pub github_release_download_proxy: String,
     pub launch_at_startup: bool,
     pub lan_access_enabled: bool,
     pub webdav: crate::config::WebDavSettings,

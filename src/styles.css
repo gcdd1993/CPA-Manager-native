@@ -83,6 +83,7 @@ svg { width: 18px; height: 18px; stroke-width: 1.8; }
 .nav-button, .icon-button, .theme-toggle { width: 44px; height: 44px; display: inline-grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease; }
 .nav-button:hover, .nav-button.active, .icon-button:hover, .theme-toggle:hover { border-color: var(--line-strong); background: var(--surface-raised); color: var(--text-primary); }
 .nav-button.active { color: var(--accent); border-left-color: var(--accent); }
+.octopus-logo { width: 24px; height: 24px; display: block; }
 .settings-button { margin-top: auto; }
 
 .main-content { grid-column: 2; width: min(1440px, 100%); margin: 0 auto; padding: 30px 40px 22px; }
@@ -113,12 +114,12 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .stop-all { margin: auto 24px; background: transparent; border-color: var(--danger); color: var(--danger); }
 .stop-all:hover { background: var(--error-bg); }
 
-.component-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
-.component-card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); transition: background-color 180ms ease, border-color 180ms ease; }
+.component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+.component-card { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); transition: background-color 180ms ease, border-color 180ms ease; }
 .component-head { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: start; gap: 14px; }
 .component-icon { width: 46px; height: 46px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--info) 50%, var(--line)); background: color-mix(in srgb, var(--info) 12%, var(--surface)); color: var(--info); }
 .component-icon.cpa-manager-plus { border-color: color-mix(in srgb, var(--warning) 50%, var(--line)); background: color-mix(in srgb, var(--warning) 12%, var(--surface)); color: var(--warning); }
-.component-icon.octopus { border-color: color-mix(in srgb, #a855f7 50%, var(--line)); background: color-mix(in srgb, #a855f7 12%, var(--surface)); color: #a855f7; }
+.component-icon.octopus { border-color: color-mix(in srgb, #20b8cf 52%, var(--line)); background: color-mix(in srgb, #20b8cf 12%, var(--surface)); color: #20b8cf; }
 .component-icon svg { width: 24px; height: 24px; }
 .component-title h2 { margin: 4px 0 5px; font-size: 17px; }
 .component-title p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
@@ -128,11 +129,11 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .status-pill.progress { color: var(--info); }.status-pill.progress .status-dot { background: var(--info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--info) 18%, transparent); }
 .status-pill.danger { color: var(--danger); }.status-pill.danger .status-dot { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent); }
 
-.component-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 22px 0; background: var(--line); border: 1px solid var(--line); }
-.component-metrics > div { min-width: 0; display: grid; gap: 7px; padding: 13px; background: var(--surface-subtle); }
+.component-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 16px 0; background: var(--line); border: 1px solid var(--line); }
+.component-metrics > div { min-width: 0; display: grid; gap: 6px; padding: 10px; background: var(--surface-subtle); }
 .component-metrics span { color: var(--text-muted); font-size: 10px; }
 .component-metrics strong { overflow: hidden; color: var(--text-primary); font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
-.component-actions { border-top: 1px solid var(--line); padding-top: 18px; }
+.component-actions { border-top: 1px solid var(--line); padding-top: 14px; }
 .component-actions .secondary-button { margin-left: auto; }
 .component-actions a { text-decoration: none; }
 .progress-block { margin: -5px 0 18px; }
@@ -189,6 +190,9 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .directory-row, .migration-row { align-items: flex-start; padding-block: 16px; }
 .directory-actions { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .directory-actions code { flex: 1; max-width: none; min-width: 180px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface-subtle); line-height: 1.5; }
+.download-proxy-actions { min-width: 0; width: min(620px, 65%); display: flex; align-items: center; gap: 10px; }
+.download-proxy-actions input { min-width: 0; flex: 1; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 4px; outline: none; background: var(--surface-raised); color: var(--text-primary); font: 12px "Cascadia Code", Consolas, monospace; }
+.download-proxy-actions input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
 .migration-row { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .muted-row { background: transparent; }
 .switch-control { min-height: 44px; display: inline-flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; font-size: 12px; font-weight: 700; transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease; }
@@ -218,9 +222,6 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 .alias-rule-row .icon-button svg, .add-alias-rule svg { width: 15px; height: 15px; }
 .add-alias-rule { justify-self: start; }
 .provider-sync-view .provider-sync-settings { margin-top: 18px; border-top: 1px solid var(--line); }
-.octopus-component-grid { grid-template-columns: minmax(0, 1fr); }
-.octopus-settings-grid { margin-top: 18px; }
-.octopus-log-section { margin-top: 24px; }
 .port-control { display: flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
 .port-control input { width: 92px; height: 40px; box-sizing: border-box; padding: 0 9px; border: 1px solid var(--line); border-radius: 4px; outline: none; background: var(--surface-raised); color: var(--text-primary); font: 12px "Cascadia Code", Consolas, monospace; }
 .port-control input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
@@ -290,6 +291,8 @@ footer svg { width: 12px; height: 12px; }
   .alias-rule-row > input:not([type="checkbox"]), .force-mapping-control { grid-column: 2; width: 100%; }
   .setting-row code { max-width: 100%; }
   .directory-actions { width: 100%; align-items: stretch; flex-direction: column; }
+  .download-proxy-row { align-items: stretch; flex-direction: column; }
+  .download-proxy-actions { width: 100%; }
   .directory-actions code { min-width: 0; width: 100%; }
   .switch-control { width: 100%; justify-content: flex-start; }
   .section-heading { align-items: flex-start; flex-direction: column; }

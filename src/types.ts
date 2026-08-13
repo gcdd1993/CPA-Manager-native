@@ -44,6 +44,7 @@ export interface AppSnapshot {
   architecture: string;
   manager_config_directory: string;
   data_directory: string;
+  github_release_download_proxy: string;
   launch_at_startup: boolean;
   lan_access_enabled: boolean;
   webdav: WebDavSettings;

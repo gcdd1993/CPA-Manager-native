@@ -20,7 +20,6 @@ import {
   LoaderCircle,
   Monitor,
   Moon,
-  Network,
   Play,
   Plus,
   Power,
@@ -44,6 +43,7 @@ import {
   setComponentPort,
   setLaunchAtStartup,
   saveWebDavSettings,
+  saveGithubReleaseDownloadProxy,
   saveProviderModelSyncSettings,
   syncProviderModelsNow,
   syncWebDav,
@@ -57,10 +57,11 @@ import type {
   ProviderModelSyncSettings,
   WebDavSettings,
 } from "./types";
+import octopusLogo from "./assets/OctopusLogo.svg";
 
 type ThemePreference = "system" | "light" | "dark";
 type ResolvedTheme = Exclude<ThemePreference, "system">;
-type ActiveView = "overview" | "provider_sync" | "octopus" | "logs" | "versions" | "webdav" | "settings";
+type ActiveView = "overview" | "provider_sync" | "logs" | "versions" | "webdav" | "settings";
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -89,7 +90,7 @@ function formatTime(value: string | null) {
 
 function ComponentIcon({ id }: { id: ComponentId }) {
   if (id === "cliproxyapi") return <ServerCog />;
-  if (id === "octopus") return <Network />;
+  if (id === "octopus") return <img className="octopus-logo" src={octopusLogo} alt="" />;
   return <Boxes />;
 }
 
@@ -255,6 +256,7 @@ export default function App() {
   const [webdavNotice, setWebdavNotice] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState<string | null>(null);
   const [portDrafts, setPortDrafts] = useState<Partial<Record<ComponentId, string>>>({});
+  const [downloadProxyDraft, setDownloadProxyDraft] = useState<string>("https://gh.xmly.dev");
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -301,6 +303,10 @@ export default function App() {
   useEffect(() => {
     if (snapshot && !providerSyncDraft) setProviderSyncDraft(snapshot.provider_model_sync);
   }, [snapshot, providerSyncDraft]);
+
+  useEffect(() => {
+    if (snapshot) setDownloadProxyDraft(snapshot.github_release_download_proxy);
+  }, [snapshot?.github_release_download_proxy]);
 
   useEffect(() => {
     if (!snapshot) return;
@@ -454,6 +460,19 @@ export default function App() {
     }
   }, [loadSnapshot]);
 
+  const saveDownloadProxy = useCallback(async (): Promise<void> => {
+    setPending("save_github_release_download_proxy");
+    setError(null);
+    try {
+      setSnapshot(await saveGithubReleaseDownloadProxy(downloadProxyDraft));
+    } catch (cause) {
+      setError(String(cause));
+      await loadSnapshot();
+    } finally {
+      setPending(null);
+    }
+  }, [downloadProxyDraft, loadSnapshot]);
+
   const toggleComponentAutoStart = useCallback(async (componentId: ComponentId, enabled: boolean) => {
     setPending(`set_component_auto_start:${componentId}`);
     setError(null);
@@ -556,7 +575,7 @@ export default function App() {
   const filteredLogs = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.logs.filter(
-      (entry) => entry.component_id !== "octopus" && (activeLog === "all" || entry.component_id === activeLog),
+      (entry) => activeLog === "all" || entry.component_id === activeLog,
     );
   }, [activeLog, snapshot]);
 
@@ -579,8 +598,14 @@ export default function App() {
     );
   }
 
-  const coreComponents = snapshot.components.filter((component) => component.id !== "octopus");
-  const octopusComponent = snapshot.components.find((component) => component.id === "octopus");
+  const componentOrder: Record<ComponentId, number> = {
+    cliproxyapi: 0,
+    "cpa-manager-plus": 1,
+    octopus: 2,
+  };
+  const coreComponents = [...snapshot.components].sort(
+    (left, right) => componentOrder[left.id] - componentOrder[right.id],
+  );
   const runningCount = coreComponents.filter(
     (component) => component.lifecycle === "running" && component.healthy,
   ).length;
@@ -625,13 +650,6 @@ export default function App() {
             aria-current={activeView === "provider_sync" ? "page" : undefined}
             onClick={() => setActiveView("provider_sync")}
           ><GitFork /></button>
-          <button
-            className={`nav-button ${activeView === "octopus" ? "active" : ""}`}
-            title="Octopus 管理"
-            aria-label="Octopus 管理"
-            aria-current={activeView === "octopus" ? "page" : undefined}
-            onClick={() => setActiveView("octopus")}
-          ><Network /></button>
           <button
             className={`nav-button ${activeView === "webdav" ? "active" : ""}`}
             title="WebDAV 同步"
@@ -966,75 +984,6 @@ export default function App() {
           </section>
         )}
 
-        {activeView === "octopus" && octopusComponent && (
-          <section className="view-section octopus-view" aria-labelledby="octopus-title">
-            <div className="view-heading">
-              <span className="section-kicker">OCTOPUS BRANCH</span>
-              <h2 id="octopus-title">Octopus 管理</h2>
-              <p>Octopus 的安装、运行参数和日志独立管理，不与 CPA Core 的 Provider 同步功能混放。</p>
-            </div>
-            <section className="component-grid octopus-component-grid" aria-label="Octopus 组件管理">
-              <ComponentCard component={octopusComponent} onAction={run} />
-            </section>
-            <div className="settings-grid octopus-settings-grid">
-              <div className="setting-row component-setting-row">
-                <div><strong>Octopus 运行设置</strong><span>独立控制自动启动和监听端口</span></div>
-                <div className="component-setting-actions">
-                  <button
-                    className={`switch-control ${octopusComponent.auto_start ? "on" : ""}`}
-                    type="button"
-                    role="switch"
-                    aria-checked={octopusComponent.auto_start}
-                    disabled={Boolean(pending)}
-                    onClick={() => toggleComponentAutoStart("octopus", !octopusComponent.auto_start)}
-                  >
-                    <span className="switch-track" aria-hidden="true"><span /></span>
-                    {pending === "set_component_auto_start:octopus" ? <LoaderCircle className="spin" /> : <Power />}
-                    自动启动
-                  </button>
-                  <label className="port-control">
-                    <span>端口</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={65535}
-                      value={portDrafts.octopus ?? octopusComponent.port}
-                      disabled={Boolean(pending)}
-                      onChange={(event) => setPortDrafts((current) => ({ ...current, octopus: event.target.value }))}
-                      onKeyDown={(event) => { if (event.key === "Enter") void saveComponentPort("octopus"); }}
-                    />
-                  </label>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={Boolean(pending) || portDrafts.octopus === String(octopusComponent.port)}
-                    onClick={() => saveComponentPort("octopus")}
-                  >
-                    {pending === "set_component_port:octopus" ? <LoaderCircle className="spin" /> : <Check />}
-                    应用
-                  </button>
-                </div>
-              </div>
-            </div>
-            <section className="log-section standalone octopus-log-section">
-              <div className="section-heading"><div><span className="section-kicker">OCTOPUS OUTPUT</span><h2>Octopus 运行日志</h2></div></div>
-              <div className="terminal">
-                <div className="terminal-head"><div className="terminal-lights"><i /><i /><i /></div><span>octopus</span></div>
-                <div className="terminal-body">
-                  {snapshot.logs.filter((entry) => entry.component_id === "octopus").length === 0 ? (
-                    <div className="empty-log">暂无 Octopus 日志</div>
-                  ) : snapshot.logs.filter((entry) => entry.component_id === "octopus").map((entry) => (
-                    <div className={`log-line ${entry.level}`} key={`${entry.timestamp}-${entry.message}`}>
-                      <time>{formatTime(entry.timestamp)}</time><span className="log-source">[octopus]</span><span>{entry.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          </section>
-        )}
-
-
         {activeView === "settings" && (
           <section className="view-section settings-view" aria-labelledby="settings-title">
             <div className="view-heading">
@@ -1130,6 +1079,28 @@ export default function App() {
                 <div><strong>固定配置目录</strong><span>Manager 设置文件</span></div>
                 <code>{snapshot.manager_config_directory}</code>
               </div>
+              <div className="setting-row download-proxy-row">
+                <div><strong>GitHub Release 下载加速</strong><span>仅用于组件安装包和校验文件，留空时直连</span></div>
+                <div className="download-proxy-actions">
+                  <input
+                    type="url"
+                    value={downloadProxyDraft}
+                    disabled={Boolean(pending)}
+                    aria-label="GitHub Release 下载加速地址"
+                    onChange={(event) => setDownloadProxyDraft(event.target.value)}
+                    onKeyDown={(event) => { if (event.key === "Enter") void saveDownloadProxy(); }}
+                  />
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={Boolean(pending) || downloadProxyDraft.trim().replace(/\/$/, "") === snapshot.github_release_download_proxy}
+                    onClick={saveDownloadProxy}
+                  >
+                    {pending === "save_github_release_download_proxy" ? <LoaderCircle className="spin" /> : <Check />}
+                    保存
+                  </button>
+                </div>
+              </div>
               {coreComponents.map((component) => {
                 const lanEnabled = component.id === "cliproxyapi" && snapshot.lan_access_enabled;
                 const autoStartPending = pending === `set_component_auto_start:${component.id}`;
@@ -1192,7 +1163,7 @@ export default function App() {
               <h2>{activeView === "logs" ? "组件运行日志" : "运行日志"}</h2>
             </div>
             <div className="segmented-control" aria-label="日志筛选">
-              {(["all", "cliproxyapi", "cpa-manager-plus"] as const).map((value) => (
+              {(["all", "cliproxyapi", "cpa-manager-plus", "octopus"] as const).map((value) => (
                 <button
                   key={value}
                   className={activeLog === value ? "active" : ""}

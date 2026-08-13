@@ -24,6 +24,8 @@ const CLIPROXY_LAN_HOST: &str = "0.0.0.0";
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ManagerSettings {
     pub data_directory: PathBuf,
+    #[serde(default = "default_github_release_download_proxy")]
+    pub github_release_download_proxy: String,
     #[serde(default)]
     pub launch_at_startup: bool,
     #[serde(default)]
@@ -62,6 +64,10 @@ pub struct ProviderModelSyncSettings {
 
 fn default_provider_model_sync_enabled() -> bool {
     true
+}
+
+fn default_github_release_download_proxy() -> String {
+    "https://gh.xmly.dev".to_string()
 }
 
 fn default_provider_model_sync_interval_seconds() -> u64 {
@@ -126,6 +132,7 @@ impl ManagerSettings {
     pub fn new(data_directory: PathBuf) -> Self {
         Self {
             data_directory,
+            github_release_download_proxy: default_github_release_download_proxy(),
             launch_at_startup: false,
             webdav: WebDavSettings::default(),
             auto_start_components: default_auto_start_components(),

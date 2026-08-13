@@ -22,7 +22,7 @@ Install, update, run, monitor, and roll back local AI gateway components from on
 
 ---
 
-CPA Manager Native is a desktop control plane for running [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/Hureru/octopus) as local managed binaries.
+CPA Manager Native is a desktop control plane for running [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/bestruirui/octopus) as local managed binaries.
 
 It does not replace CPA-Manager-Plus. It provides a stable native shell around the upstream components: release discovery, checksum verification, installation, startup, health checks, logs, data-directory management, and rollback are handled from one UI.
 
@@ -256,7 +256,7 @@ PRD/        Product notes and design references
 
 ## Acknowledgements
 
-CPA Manager Native manages the upstream projects [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/Hureru/octopus). Those projects are distributed under their own licenses and release processes.
+CPA Manager Native manages the upstream projects [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus), and [Octopus](https://github.com/bestruirui/octopus). Those projects are distributed under their own licenses and release processes.
 
 ## Friends
 

@@ -8,6 +8,7 @@ const demoSnapshot: AppSnapshot = {
   architecture: "x86_64",
   manager_config_directory: "C:\\Users\\User\\.cpamanager-native",
   data_directory: "C:\\Users\\User\\AppData\\Roaming\\CPA Manager Native",
+  github_release_download_proxy: "https://gh.xmly.dev",
   launch_at_startup: false,
   lan_access_enabled: false,
   webdav: {
@@ -67,7 +68,7 @@ const demoSnapshot: AppSnapshot = {
       name: "Octopus",
       short_name: "Octopus",
       description: "面向个人的 LLM API 聚合与负载均衡服务",
-      repository: "Hureru/octopus",
+      repository: "bestruirui/octopus",
       installed_version: null,
       latest_version: null,
       lifecycle: "not_installed",
@@ -147,6 +148,16 @@ export async function setLanAccess(enabled: boolean): Promise<AppSnapshot> {
   }
 
   return invoke<AppSnapshot>("set_lan_access", { enabled });
+}
+
+export async function saveGithubReleaseDownloadProxy(value: string): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    demoSnapshot.github_release_download_proxy = value;
+    return demoSnapshot;
+  }
+  return invoke<AppSnapshot>("save_github_release_download_proxy", {
+    githubReleaseDownloadProxy: value,
+  });
 }
 
 export async function setComponentAutoStart(

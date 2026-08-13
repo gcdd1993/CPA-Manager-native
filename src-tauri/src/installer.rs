@@ -48,9 +48,13 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     );
 
     let expected_hash = if let Some(checksums) = checksums {
+        let checksum_url = proxied_download_url(
+            &state.settings().github_release_download_proxy,
+            &checksums.browser_download_url,
+        );
         let checksum_text = state
             .client
-            .get(&checksums.browser_download_url)
+            .get(checksum_url)
             .send()
             .await?
             .error_for_status()?
@@ -66,11 +70,15 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     let download_path = data_root
         .join("downloads")
         .join(format!("{}.part", archive.name));
+    let archive_download_url = proxied_download_url(
+        &state.settings().github_release_download_proxy,
+        &archive.browser_download_url,
+    );
     download(
         app,
         state,
         id,
-        &archive.browser_download_url,
+        &archive_download_url,
         &download_path,
         archive.size,
     )
@@ -157,6 +165,73 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
     }
     state.emit_snapshot(app);
     Ok(())
+}
+
+fn proxied_download_url(proxy: &str, original_url: &str) -> String {
+    let proxy = proxy.trim().trim_end_matches('/');
+    if proxy.is_empty() {
+        original_url.to_string()
+    } else {
+        format!("{proxy}/{original_url}")
+    }
+}
+
+/// Switch the component manifest to the newest retained version other than the
+/// currently selected one. Installed versions are kept under `versions/` by
+/// `install`, so rollback only needs to update the manifest and in-memory
+/// runtime state; the process restart is handled by the caller.
+pub fn rollback_to_previous_version(
+    state: &AppState,
+    id: ComponentId,
+) -> AppResult<Option<InstallManifest>> {
+    let current = state.with_component(id, |runtime| runtime.installed.clone());
+    let Some(current) = current else {
+        return Ok(None);
+    };
+    let root = component_root(&state.root(), id);
+    let versions_root = root.join("versions");
+    if !versions_root.exists() {
+        return Ok(None);
+    }
+
+    let mut candidates: Vec<(PathBuf, std::time::SystemTime)> = fs::read_dir(&versions_root)?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_dir())
+        .filter(|entry| {
+            entry.file_name().to_string_lossy() != current.version.trim_start_matches('v')
+        })
+        .map(|entry| {
+            let modified = entry
+                .metadata()
+                .and_then(|meta| meta.modified())
+                .unwrap_or(std::time::UNIX_EPOCH);
+            (entry.path(), modified)
+        })
+        .collect();
+    candidates.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
+    let Some((version_dir, _)) = candidates.into_iter().next() else {
+        return Ok(None);
+    };
+    let executable_path = locate_executable(&version_dir, id)?;
+    let version_name = version_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| message("上一版本目录名称无效"))?;
+    let mut previous = current;
+    previous.version = if version_name.starts_with('v') {
+        version_name.to_string()
+    } else {
+        format!("v{version_name}")
+    };
+    previous.executable_path = executable_path;
+    write_manifest(&state.current_manifest_path(id), &previous)?;
+    state.update_component(id, |runtime| {
+        runtime.installed = Some(previous.clone());
+        runtime.lifecycle = LifecycleState::Stopped;
+        runtime.healthy = false;
+        runtime.pid = None;
+    });
+    Ok(Some(previous))
 }
 
 async fn download(
@@ -319,6 +394,16 @@ fn cleanup_old_versions(root: &Path, current: &str, keep: usize) -> AppResult<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefixes_release_download_url_when_proxy_is_configured() {
+        let original = "https://github.com/example/project/releases/download/v1/app.zip";
+        assert_eq!(proxied_download_url("", original), original);
+        assert_eq!(
+            proxied_download_url("https://gh.xmly.dev", original),
+            format!("https://gh.xmly.dev/{original}")
+        );
+    }
 
     #[test]
     fn parses_standard_and_starred_checksums() {

@@ -128,6 +128,7 @@ pub fn run() {
             commands::stop_component,
             commands::sync_provider_models_now,
             commands::save_provider_model_sync_settings,
+            commands::save_github_release_download_proxy,
             commands::start_all,
             commands::stop_all,
             commands::select_data_directory,

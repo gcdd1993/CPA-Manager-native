@@ -152,6 +152,7 @@ impl AppState {
             architecture: std::env::consts::ARCH.to_string(),
             manager_config_directory: self.manager_config_dir.display().to_string(),
             data_directory: settings.data_directory.display().to_string(),
+            github_release_download_proxy: settings.github_release_download_proxy.clone(),
             launch_at_startup: settings.launch_at_startup,
             lan_access_enabled: cliproxy_lan_access_enabled(
                 &settings

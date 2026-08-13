@@ -147,19 +147,18 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'cpa-manager-native-v__VERSION__' }}
           releaseName: ${{ github.ref_type == 'tag' && format('CPA Manager Native {0}', github.ref_name) || 'CPA Manager Native v__VERSION__' }}
           releaseBody: |
-            ## Changelog for 0.0.6
+            ## Changelog for 0.0.7
 
             ### Added
-            - Native synchronization of OpenAI-compatible Provider models and aliases.
-            - Visual regular-expression alias rules with built-in normalization for case, spaces, provider prefixes, and date suffixes.
-            - A dedicated Provider synchronization view with alias-processing logs and a configurable interval in minutes.
+            - Octopus lifecycle management alongside CLIProxyAPI and CPA-Manager-Plus.
+            - Configurable GitHub Release download acceleration, defaulting to `https://gh.xmly.dev`.
+            - Automatic rollback to a retained component version after startup failure.
 
             ### Changed
-            - Provider synchronization defaults to once every 24 hours and restarts CLIProxyAPI only when its configuration changes.
-            - Core component cards use a balanced two-column layout.
-            - The application status bar remains fixed at the bottom of every view.
+            - Updated Octopus to the `bestruirui/octopus` upstream repository.
+            - Unified Octopus with dashboard cards, settings, versions, and runtime logs.
 
-            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.6/CHANGELOG.md
+            Full changelog: https://github.com/gcdd1993/CPA-Manager-native/blob/v0.0.7/CHANGELOG.md
 
             Application binaries are not Authenticode-signed; updater artifacts are signed with the Tauri updater key.
           releaseDraft: ${{ github.ref_type != 'tag' }}

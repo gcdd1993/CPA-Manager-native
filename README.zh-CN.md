@@ -22,7 +22,7 @@
 
 ---
 
-CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/Hureru/octopus) 作为本地托管二进制程序运行。
+CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/bestruirui/octopus) 作为本地托管二进制程序运行。
 
 它不是 CPA-Manager-Plus 的替代品，而是围绕上游组件提供稳定的原生桌面外壳：Release 查询、校验和验证、安装、启动、健康检查、日志、数据目录管理和回滚都可以在同一个界面中完成。
 
@@ -256,7 +256,7 @@ PRD/        产品说明与设计参考
 
 ## 致谢
 
-CPA Manager Native 管理上游项目 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/Hureru/octopus)。这些项目遵循各自的许可证和发布流程。
+CPA Manager Native 管理上游项目 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/bestruirui/octopus)。这些项目遵循各自的许可证和发布流程。
 
 ## 友情链接
 

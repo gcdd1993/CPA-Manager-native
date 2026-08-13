@@ -46,7 +46,7 @@ pub const COMPONENTS: [ComponentDefinition; 3] = [
         name: "Octopus",
         short_name: "Octopus",
         description: "面向个人的 LLM API 聚合与负载均衡服务",
-        repository: "Hureru/octopus",
+        repository: "bestruirui/octopus",
         executable_stem: "octopus",
         port: 8080,
         health_path: "/",
