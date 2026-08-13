@@ -14,6 +14,7 @@ use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 use crate::{
     config::{ManagerSettings, WebDavSettings},
     error::{message, AppResult},
+    models::ComponentId,
     state::AppState,
 };
 
@@ -22,7 +23,8 @@ const ARCHIVE_VERSION: u8 = 1;
 const MANAGER_FILE: &str = "manager/settings.json";
 const CPA_FILE: &str = "cpa/config.yaml";
 const CPAMP_FILE: &str = "cpa-manager-plus/config.json";
-const ALLOWED_FILES: [&str; 3] = [MANAGER_FILE, CPA_FILE, CPAMP_FILE];
+const OCTOPUS_FILE: &str = "octopus/config.json";
+const ALLOWED_FILES: [&str; 4] = [MANAGER_FILE, CPA_FILE, CPAMP_FILE, OCTOPUS_FILE];
 
 static SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -174,6 +176,13 @@ fn build_archive(state: &AppState) -> AppResult<Vec<u8>> {
         (MANAGER_FILE, settings_path),
         (CPA_FILE, state.root().join("config.yaml")),
         (CPAMP_FILE, state.root().join("config.json")),
+        (
+            OCTOPUS_FILE,
+            state
+                .component_data_dir(ComponentId::Octopus)
+                .join("data")
+                .join("config.json"),
+        ),
     ];
     let present: Vec<_> = candidates
         .into_iter()
@@ -304,6 +313,10 @@ fn target_path(state: &AppState, name: &str) -> AppResult<PathBuf> {
         MANAGER_FILE => Ok(state.manager_config_dir().join("settings.json")),
         CPA_FILE => Ok(state.root().join("config.yaml")),
         CPAMP_FILE => Ok(state.root().join("config.json")),
+        OCTOPUS_FILE => Ok(state
+            .component_data_dir(ComponentId::Octopus)
+            .join("data")
+            .join("config.json")),
         _ => Err(message("归档路径不在配置白名单中")),
     }
 }
@@ -350,8 +363,11 @@ mod tests {
         );
     }
     #[test]
-    fn whitelist_contains_only_three_configuration_files() {
-        assert_eq!(ALLOWED_FILES, [MANAGER_FILE, CPA_FILE, CPAMP_FILE]);
+    fn whitelist_contains_only_configuration_files() {
+        assert_eq!(
+            ALLOWED_FILES,
+            [MANAGER_FILE, CPA_FILE, CPAMP_FILE, OCTOPUS_FILE]
+        );
         assert!(ALLOWED_FILES
             .iter()
             .all(|name| !name.contains("components") && !name.ends_with(".exe")));

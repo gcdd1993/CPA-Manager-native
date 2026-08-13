@@ -1,9 +1,14 @@
 use std::{
+    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
 };
 
-use crate::error::{message, AppResult};
+use crate::{
+    components::COMPONENTS,
+    error::{message, AppResult},
+    models::ComponentId,
+};
 
 pub struct SecretKeyResult {
     pub key: Option<String>,
@@ -23,6 +28,10 @@ pub struct ManagerSettings {
     pub launch_at_startup: bool,
     #[serde(default)]
     pub webdav: WebDavSettings,
+    #[serde(default = "default_auto_start_components")]
+    pub auto_start_components: HashMap<ComponentId, bool>,
+    #[serde(default = "default_component_ports")]
+    pub component_ports: HashMap<ComponentId, u16>,
     #[serde(default)]
     pub provider_model_sync: ProviderModelSyncSettings,
 }
@@ -45,8 +54,8 @@ pub struct ProviderModelAliasRule {
 pub struct ProviderModelSyncSettings {
     #[serde(default = "default_provider_model_sync_enabled")]
     pub enabled: bool,
-    #[serde(default = "default_provider_model_sync_interval_minutes")]
-    pub interval_minutes: u64,
+    #[serde(default = "default_provider_model_sync_interval_seconds")]
+    pub interval_seconds: u64,
     #[serde(default)]
     pub alias_rules: Vec<ProviderModelAliasRule>,
 }
@@ -55,18 +64,29 @@ fn default_provider_model_sync_enabled() -> bool {
     true
 }
 
-fn default_provider_model_sync_interval_minutes() -> u64 {
-    1440
+fn default_provider_model_sync_interval_seconds() -> u64 {
+    300
 }
 
 impl Default for ProviderModelSyncSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            interval_minutes: default_provider_model_sync_interval_minutes(),
+            interval_seconds: default_provider_model_sync_interval_seconds(),
             alias_rules: Vec::new(),
         }
     }
+}
+
+fn default_auto_start_components() -> HashMap<ComponentId, bool> {
+    ComponentId::ALL.into_iter().map(|id| (id, true)).collect()
+}
+
+fn default_component_ports() -> HashMap<ComponentId, u16> {
+    COMPONENTS
+        .iter()
+        .map(|component| (component.id, component.port))
+        .collect()
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -108,8 +128,22 @@ impl ManagerSettings {
             data_directory,
             launch_at_startup: false,
             webdav: WebDavSettings::default(),
+            auto_start_components: default_auto_start_components(),
+            component_ports: default_component_ports(),
             provider_model_sync: ProviderModelSyncSettings::default(),
         }
+    }
+
+    pub fn component_auto_start(&self, id: ComponentId) -> bool {
+        self.auto_start_components.get(&id).copied().unwrap_or(true)
+    }
+
+    pub fn component_port(&self, id: ComponentId) -> u16 {
+        self.component_ports
+            .get(&id)
+            .copied()
+            .filter(|port| *port != 0)
+            .unwrap_or_else(|| crate::components::definition(id).port)
     }
 }
 
@@ -276,6 +310,17 @@ pub fn set_cliproxy_lan_access(data_dir: &Path, enabled: bool) -> AppResult<()> 
     Ok(())
 }
 
+pub fn set_cliproxy_port(data_dir: &Path, port: u16) -> AppResult<()> {
+    ensure_cliproxy_secret(data_dir)?;
+    let path = data_dir.join("config.yaml");
+    let contents = fs::read_to_string(&path)?;
+    let updated = write_cliproxy_port(&contents, port);
+    if updated != contents {
+        replace_config_contents(&path, &updated)?;
+    }
+    Ok(())
+}
+
 fn read_cliproxy_host(contents: &str) -> Option<String> {
     contents.lines().find_map(|line| {
         if line != line.trim_start() || !line.starts_with("host:") {
@@ -300,6 +345,20 @@ fn write_cliproxy_host(contents: &str, host: &str) -> String {
         lines[index] = format!("host: \"{host}\"");
     } else {
         lines.insert(0, format!("host: \"{host}\""));
+    }
+    format!("{}\n", lines.join("\n"))
+}
+
+fn write_cliproxy_port(contents: &str, port: u16) -> String {
+    let mut lines: Vec<String> = contents.lines().map(ToOwned::to_owned).collect();
+    if let Some(index) = lines
+        .iter()
+        .position(|line| line == line.trim_start() && line.starts_with("port:"))
+    {
+        lines[index] = format!("port: {port}");
+    } else {
+        let index = usize::from(lines.first().is_some_and(|line| line.starts_with("host:")));
+        lines.insert(index, format!("port: {port}"));
     }
     format!("{}\n", lines.join("\n"))
 }
@@ -521,6 +580,25 @@ fn default_cliproxy_config(key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_manager_settings_receive_component_defaults() {
+        let settings: ManagerSettings =
+            serde_json::from_str(r#"{"data_directory":"C:\\data","launch_at_startup":false}"#)
+                .unwrap();
+        for component in COMPONENTS {
+            assert!(settings.component_auto_start(component.id));
+            assert_eq!(settings.component_port(component.id), component.port);
+        }
+    }
+
+    #[test]
+    fn updates_top_level_cliproxy_port() {
+        let config = "host: \"127.0.0.1\"\nport: 8317\nproxy:\n  port: 9000\n";
+        let updated = write_cliproxy_port(config, 18318);
+        assert!(updated.contains("\nport: 18318\n"));
+        assert!(updated.contains("  port: 9000"));
+    }
 
     #[test]
     fn reads_and_preserves_existing_secret() {

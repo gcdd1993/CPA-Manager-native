@@ -4,7 +4,7 @@
 
 # CPA Manager Native
 
-**面向 CLIProxyAPI 与 CPA-Manager-Plus 的原生桌面管理器**
+**面向 CLIProxyAPI、CPA-Manager-Plus 与 Octopus 的原生桌面管理器**
 
 在一个本地 Tauri 桌面应用中完成安装、更新、运行、监控和回滚。
 
@@ -14,7 +14,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Release](https://img.shields.io/github/v/release/gcdd1993/CPA-Manager-native?include_prereleases&sort=semver&label=release&color=4c9a40)](https://github.com/gcdd1993/CPA-Manager-native/releases)
 
-<sub>关键词：CLIProxyAPI 管理器 · CPA-Manager-Plus 桌面外壳 · 本地二进制管理 · Tauri 桌面应用</sub>
+<sub>关键词：CLIProxyAPI 管理器 · CPA-Manager-Plus · Octopus · 本地二进制管理 · Tauri 桌面应用</sub>
 
 [English](README.md) · **简体中文**
 
@@ -22,13 +22,13 @@
 
 ---
 
-CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 和 [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 作为本地托管二进制程序运行。
+CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/Hureru/octopus) 作为本地托管二进制程序运行。
 
 它不是 CPA-Manager-Plus 的替代品，而是围绕上游组件提供稳定的原生桌面外壳：Release 查询、校验和验证、安装、启动、健康检查、日志、数据目录管理和回滚都可以在同一个界面中完成。
 
 ## 适用场景
 
-- 希望一键本地启动 CLIProxyAPI 和 CPA-Manager-Plus 的用户。
+- 希望一键本地启动 CLIProxyAPI、CPA-Manager-Plus 或 Octopus 的用户。
 - 希望用托盘型桌面应用管理服务，而不是手动维护终端进程的用户。
 - 需要通过校验和、健康检查和回滚降低升级风险的用户。
 - 希望在托管服务就绪后再打开 CPA-Manager-Plus Web 管理页的用户。
@@ -45,15 +45,16 @@ CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://gi
 
 #### 托管安装
 
-- 从 GitHub Releases 查询 CPA Core 和 CPA-Manager-Plus 的最新版本。
+- 从 GitHub Releases 查询 CPA Core、CPA-Manager-Plus 和 Octopus 的最新版本。
 - 匹配 Windows、macOS 和 Linux 的平台专属 Release 资产。
-- 激活前使用上游 `checksums.txt` 校验下载文件。
+- 激活前使用上游 `checksums.txt` 或 GitHub Release 资产的 SHA-256 摘要校验下载文件。
 - 保留近期安装版本，启动失败时可以回滚到上一可用版本。
 
 #### 本地进程控制
 
 - 在桌面界面中启动和停止每个已安装组件。
-- CPA Manager Native 启动后自动拉起已安装组件。
+- 可独立选择 CPA Manager Native 启动后自动拉起哪些已安装组件。
+- 可修改每个组件的本地服务端口；重复端口会被拒绝，运行中的组件修改端口后会自动重启。
 - 桌面应用退出时自动停止托管组件。
 - 启动托管服务前检查端口占用；若端口已被占用，自动停止监听进程并在端口释放后重新启动受管服务。
 
@@ -69,7 +70,7 @@ CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://gi
 - 将应用设置保存在用户的 `~/.cpamanager-native` 目录。
 - 使用可配置的数据目录保存托管组件二进制、manifest、日志和配置。
 - 当上游配置中的 CLIProxyAPI 远程管理密钥为空时，自动生成并持久化密钥。
-- 在独立的“WebDAV 同步”页面手动上传或恢复本程序、CPA Core 和 CPA-Manager-Plus 的配置。同步采用文件白名单，不包含组件程序、版本目录、日志或下载缓存；恢复前会在固定配置目录创建本地备份。
+- 在独立的“WebDAV 同步”页面手动上传或恢复本程序及托管组件的配置。同步采用文件白名单，不包含组件程序、数据库、版本目录、日志或下载缓存；恢复前会在固定配置目录创建本地备份。
 - 在已安装版本视图中显示可恢复的管理密钥。
 - 保留已有的上游哈希密钥，不暴露也不轮换。
 
@@ -111,9 +112,9 @@ CPA Manager Native 是一个桌面控制台，用于把 [CLIProxyAPI](https://gi
 
 1. 安装并打开 CPA Manager Native。
 2. 选择或确认用于保存托管组件二进制和配置的数据目录。
-3. 在仪表盘中安装 CPA Core 和 CPA-Manager-Plus。
-4. 从应用中启动两个组件。
-5. 等待健康检查通过，然后打开 CPA-Manager-Plus 管理页。
+3. 在仪表盘中安装需要的组件。
+4. 从应用中启动这些组件。
+5. 等待健康检查通过，然后打开所需的管理页。
 
 CPA-Manager-Plus 会被配置为连接 `http://127.0.0.1:8317` 上的 CLIProxyAPI。
 
@@ -123,6 +124,7 @@ CPA-Manager-Plus 会被配置为连接 `http://127.0.0.1:8317` 上的 CLIProxyAP
 | --- | --- | --- | --- |
 | CLIProxyAPI | CPA Core | 本地 AI API 网关与协议转换核心 | `8317` |
 | CPA-Manager-Plus | CPAMP | Web 管理、监控与可视化控制台 | `18317` |
+| Octopus | Octopus | 面向个人的 LLM API 聚合与负载均衡服务 | `8080` |
 
 ## 平台支持
 
@@ -254,7 +256,7 @@ PRD/        产品说明与设计参考
 
 ## 致谢
 
-CPA Manager Native 管理上游项目 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 和 [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus)。这些项目遵循各自的许可证和发布流程。
+CPA Manager Native 管理上游项目 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)、[CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus) 和 [Octopus](https://github.com/Hureru/octopus)。这些项目遵循各自的许可证和发布流程。
 
 ## 友情链接
 

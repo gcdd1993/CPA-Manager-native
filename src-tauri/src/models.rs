@@ -9,15 +9,17 @@ use crate::error::{message, AppResult};
 pub enum ComponentId {
     Cliproxyapi,
     CpaManagerPlus,
+    Octopus,
 }
 
 impl ComponentId {
-    pub const ALL: [Self; 2] = [Self::Cliproxyapi, Self::CpaManagerPlus];
+    pub const ALL: [Self; 3] = [Self::Cliproxyapi, Self::CpaManagerPlus, Self::Octopus];
 
     pub fn directory_name(self) -> &'static str {
         match self {
             Self::Cliproxyapi => "cliproxyapi",
             Self::CpaManagerPlus => "cpa-manager-plus",
+            Self::Octopus => "octopus",
         }
     }
 }
@@ -35,6 +37,7 @@ impl FromStr for ComponentId {
         match value {
             "cliproxyapi" => Ok(Self::Cliproxyapi),
             "cpa-manager-plus" => Ok(Self::CpaManagerPlus),
+            "octopus" => Ok(Self::Octopus),
             _ => Err(message(format!("未知组件：{value}"))),
         }
     }
@@ -66,6 +69,7 @@ pub struct ComponentSnapshot {
     pub healthy: bool,
     pub pid: Option<u32>,
     pub port: u16,
+    pub auto_start: bool,
     pub management_url: Option<String>,
     pub management_key: Option<String>,
     pub update_available: bool,
@@ -106,6 +110,7 @@ pub enum LogSource {
     App,
     Cliproxyapi,
     CpaManagerPlus,
+    Octopus,
 }
 
 impl From<ComponentId> for LogSource {
@@ -113,6 +118,7 @@ impl From<ComponentId> for LogSource {
         match value {
             ComponentId::Cliproxyapi => Self::Cliproxyapi,
             ComponentId::CpaManagerPlus => Self::CpaManagerPlus,
+            ComponentId::Octopus => Self::Octopus,
         }
     }
 }

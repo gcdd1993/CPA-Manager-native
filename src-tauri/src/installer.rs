@@ -13,7 +13,7 @@ use tauri::AppHandle;
 use crate::{
     components::locate_executable,
     error::{message, AppResult},
-    github::{latest_release, resolve_assets},
+    github::{github_sha256, latest_release, resolve_assets},
     models::{ComponentId, InstallManifest, LifecycleState, LogLevel, LogSource},
     process,
     state::{component_root, write_manifest, AppState},
@@ -47,16 +47,20 @@ pub async fn install(app: &AppHandle, state: &AppState, id: ComponentId) -> AppR
         ),
     );
 
-    let checksum_text = state
-        .client
-        .get(&checksums.browser_download_url)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
-    let expected_hash = parse_checksum(&checksum_text, &archive.name)
-        .ok_or_else(|| message(format!("checksums.txt 中未找到 {}", archive.name)))?;
+    let expected_hash = if let Some(checksums) = checksums {
+        let checksum_text = state
+            .client
+            .get(&checksums.browser_download_url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        parse_checksum(&checksum_text, &archive.name)
+            .ok_or_else(|| message(format!("checksums.txt 中未找到 {}", archive.name)))?
+    } else {
+        github_sha256(&archive).ok_or_else(|| message("GitHub Release 资产缺少 SHA-256 摘要"))?
+    };
 
     let data_root = state.root();
     let download_path = data_root

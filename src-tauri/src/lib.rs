@@ -86,9 +86,7 @@ pub fn run() {
                         && last_provider_model_sync
                             .map(|instant: std::time::Instant| {
                                 instant.elapsed()
-                                    >= Duration::from_secs(
-                                        sync_settings.interval_minutes.max(1) * 60,
-                                    )
+                                    >= Duration::from_secs(sync_settings.interval_seconds.max(10))
                             })
                             .unwrap_or(true);
                     if sync_due {
@@ -136,6 +134,8 @@ pub fn run() {
             commands::change_data_directory,
             commands::set_launch_at_startup,
             commands::set_lan_access,
+            commands::set_component_auto_start,
+            commands::set_component_port,
             commands::open_management_page,
             commands::open_log_directory,
             commands::open_repository,
@@ -172,23 +172,10 @@ fn show_main_window(app: &AppHandle) {
 
 fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {
     let desired = state.launch_at_startup();
-    let autolaunch = app.autolaunch();
-    let actual = match autolaunch.is_enabled() {
-        Ok(actual) => actual,
-        Err(error) => {
-            state.log(
-                LogSource::App,
-                LogLevel::Warn,
-                format!("读取开机自启状态失败：{error}"),
-            );
-            return;
-        }
-    };
-
-    let result = match (desired, actual) {
-        (true, false) => autolaunch.enable(),
-        (false, true) => autolaunch.disable(),
-        _ => Ok(()),
+    let result = if desired {
+        app.autolaunch().enable()
+    } else {
+        app.autolaunch().disable()
     };
     if let Err(error) = result {
         state.log(
@@ -199,7 +186,7 @@ fn sync_launch_at_startup(app: &AppHandle, state: &AppState) {
         return;
     }
 
-    let actual = autolaunch.is_enabled().unwrap_or(desired);
+    let actual = app.autolaunch().is_enabled().unwrap_or(desired);
     if let Err(error) = state.set_launch_at_startup(actual) {
         state.log(
             LogSource::App,

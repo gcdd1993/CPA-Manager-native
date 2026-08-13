@@ -1,4 +1,4 @@
-export type ComponentId = "cliproxyapi" | "cpa-manager-plus";
+export type ComponentId = "cliproxyapi" | "cpa-manager-plus" | "octopus";
 
 export type LifecycleState =
   | "not_installed"
@@ -22,6 +22,7 @@ export interface ComponentSnapshot {
   healthy: boolean;
   pid: number | null;
   port: number;
+  auto_start: boolean;
   management_url: string | null;
   management_key: string | null;
   update_available: boolean;
@@ -64,7 +65,7 @@ export interface ProviderModelAliasRule {
 
 export interface ProviderModelSyncSettings {
   enabled: boolean;
-  interval_minutes: number;
+  interval_seconds: number;
   alias_rules: ProviderModelAliasRule[];
 }
 

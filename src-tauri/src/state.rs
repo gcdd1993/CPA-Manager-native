@@ -117,6 +117,7 @@ impl AppState {
                     .get(&definition.id)
                     .expect("known component");
                 let installed_version = runtime.installed.as_ref().map(|item| item.version.clone());
+                let port = settings.component_port(definition.id);
                 ComponentSnapshot {
                     id: definition.id,
                     name: definition.name.to_string(),
@@ -128,10 +129,11 @@ impl AppState {
                     lifecycle: runtime.lifecycle,
                     healthy: runtime.healthy,
                     pid: runtime.pid,
-                    port: definition.port,
+                    port,
+                    auto_start: settings.component_auto_start(definition.id),
                     management_url: Some(format!(
                         "http://127.0.0.1:{}{}",
-                        definition.port, definition.management_path
+                        port, definition.management_path
                     )),
                     management_key: runtime.management_key.clone(),
                     update_available: is_update_available(
@@ -250,6 +252,32 @@ impl AppState {
         write_manager_settings(&self.manager_config_dir, &next)?;
         *self.settings.lock().expect("settings lock poisoned") = next;
         Ok(())
+    }
+
+    pub fn component_port(&self, id: ComponentId) -> u16 {
+        self.settings
+            .lock()
+            .expect("settings lock poisoned")
+            .component_port(id)
+    }
+
+    pub fn component_auto_start(&self, id: ComponentId) -> bool {
+        self.settings
+            .lock()
+            .expect("settings lock poisoned")
+            .component_auto_start(id)
+    }
+
+    pub fn set_component_auto_start(&self, id: ComponentId, enabled: bool) -> AppResult<()> {
+        let mut next = self.settings();
+        next.auto_start_components.insert(id, enabled);
+        self.replace_settings(next)
+    }
+
+    pub fn set_component_port(&self, id: ComponentId, port: u16) -> AppResult<()> {
+        let mut next = self.settings();
+        next.component_ports.insert(id, port);
+        self.replace_settings(next)
     }
 
     pub fn settings(&self) -> ManagerSettings {

@@ -13,14 +13,14 @@ use std::os::windows::process::CommandExt;
 
 use crate::{
     components::definition,
-    config::ensure_cliproxy_secret,
+    config::{ensure_cliproxy_secret, set_cliproxy_port},
     error::{message, AppResult},
     models::{ComponentId, LifecycleState, LogLevel, LogSource},
     state::AppState,
 };
 
 pub async fn start(app: &AppHandle, state: &AppState, id: ComponentId) -> AppResult<()> {
-    let definition = definition(id);
+    let port = state.component_port(id);
     let installed = state
         .with_component(id, |runtime| runtime.installed.clone())
         .ok_or_else(|| message("组件尚未安装"))?;
@@ -33,7 +33,7 @@ pub async fn start(app: &AppHandle, state: &AppState, id: ComponentId) -> AppRes
         return Err(message("组件已经在运行"));
     }
     prepare_component_data(state, id)?;
-    reclaim_port(state, id, definition.port).await?;
+    reclaim_port(state, id, port).await?;
 
     state.update_component(id, |runtime| {
         runtime.lifecycle = LifecycleState::Starting;
@@ -57,9 +57,21 @@ pub async fn start(app: &AppHandle, state: &AppState, id: ComponentId) -> AppRes
         ComponentId::CpaManagerPlus => {
             command
                 .env("CPA_MANAGER_CONFIG", data_dir.join("config.json"))
-                .env("HTTP_ADDR", format!("127.0.0.1:{}", definition.port))
+                .env("HTTP_ADDR", format!("127.0.0.1:{port}"))
                 .env("USAGE_DATA_DIR", data_dir.join("data"))
-                .env("CPA_UPSTREAM_URL", "http://127.0.0.1:8317");
+                .env(
+                    "CPA_UPSTREAM_URL",
+                    format!(
+                        "http://127.0.0.1:{}",
+                        state.component_port(ComponentId::Cliproxyapi)
+                    ),
+                );
+        }
+        ComponentId::Octopus => {
+            command
+                .arg("start")
+                .env("OCTOPUS_SERVER_HOST", "127.0.0.1")
+                .env("OCTOPUS_SERVER_PORT", port.to_string());
         }
     }
     #[cfg(windows)]
@@ -202,6 +214,7 @@ fn prepare_component_data(state: &AppState, id: ComponentId) -> AppResult<()> {
     match id {
         ComponentId::Cliproxyapi => {
             let result = ensure_cliproxy_secret(&data_dir)?;
+            set_cliproxy_port(&data_dir, state.component_port(id))?;
             crate::provider_model_sync::disable_legacy_plugin_in_file(
                 &data_dir.join("config.yaml"),
             )?;
@@ -229,6 +242,9 @@ fn prepare_component_data(state: &AppState, id: ComponentId) -> AppResult<()> {
                     }))?,
                 )?;
             }
+        }
+        ComponentId::Octopus => {
+            fs::create_dir_all(data_dir.join("data"))?;
         }
     }
     Ok(())
@@ -418,10 +434,8 @@ fn stop_port_process(pid: u32, force: bool) -> AppResult<()> {
 
 async fn service_health(state: &AppState, id: ComponentId) -> bool {
     let definition = definition(id);
-    let url = format!(
-        "http://127.0.0.1:{}{}",
-        definition.port, definition.health_path
-    );
+    let port = state.component_port(id);
+    let url = format!("http://127.0.0.1:{}{}", port, definition.health_path);
     tokio::time::timeout(Duration::from_millis(1200), state.client.get(url).send())
         .await
         .is_ok_and(|result| result.is_ok_and(|response| response.status().is_success()))

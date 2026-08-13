@@ -15,7 +15,7 @@ const demoSnapshot: AppSnapshot = {
     remote_path: "CPA-Manager-Native/config-backup.zip",
     last_sync_at: null, last_error: null,
   },
-  provider_model_sync: { enabled: true, interval_minutes: 1440, alias_rules: [] },
+  provider_model_sync: { enabled: true, interval_seconds: 300, alias_rules: [] },
   provider_model_sync_last_success: null,
   provider_model_sync_last_error: null,
   last_update_check: null,
@@ -32,7 +32,8 @@ const demoSnapshot: AppSnapshot = {
       healthy: false,
       pid: null,
       port: 8317,
-      management_url: "http://127.0.0.1:8317/management.html",
+      auto_start: true,
+      management_url: "http://127.0.0.1:8317",
       management_key: "cpa_demo_key_generated_on_first_start",
       update_available: false,
       busy: false,
@@ -52,7 +53,29 @@ const demoSnapshot: AppSnapshot = {
       healthy: false,
       pid: null,
       port: 18317,
+      auto_start: true,
       management_url: "http://127.0.0.1:18317",
+      management_key: null,
+      update_available: false,
+      busy: false,
+      progress_percent: null,
+      progress_label: null,
+      last_error: null,
+    },
+    {
+      id: "octopus",
+      name: "Octopus",
+      short_name: "Octopus",
+      description: "面向个人的 LLM API 聚合与负载均衡服务",
+      repository: "Hureru/octopus",
+      installed_version: null,
+      latest_version: null,
+      lifecycle: "not_installed",
+      healthy: false,
+      pid: null,
+      port: 8080,
+      auto_start: true,
+      management_url: "http://127.0.0.1:8080",
       management_key: null,
       update_available: false,
       busy: false,
@@ -124,6 +147,31 @@ export async function setLanAccess(enabled: boolean): Promise<AppSnapshot> {
   }
 
   return invoke<AppSnapshot>("set_lan_access", { enabled });
+}
+
+export async function setComponentAutoStart(
+  componentId: ComponentId,
+  enabled: boolean,
+): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    const component = demoSnapshot.components.find((item) => item.id === componentId)!;
+    component.auto_start = enabled;
+    return demoSnapshot;
+  }
+  return invoke<AppSnapshot>("set_component_auto_start", { componentId, enabled });
+}
+
+export async function setComponentPort(
+  componentId: ComponentId,
+  port: number,
+): Promise<AppSnapshot> {
+  if (!isTauri()) {
+    const component = demoSnapshot.components.find((item) => item.id === componentId)!;
+    component.port = port;
+    component.management_url = `http://127.0.0.1:${port}`;
+    return demoSnapshot;
+  }
+  return invoke<AppSnapshot>("set_component_port", { componentId, port });
 }
 
 export async function saveWebDavSettings(settings: WebDavSettings): Promise<AppSnapshot> {
